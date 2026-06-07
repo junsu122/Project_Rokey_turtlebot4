@@ -8,7 +8,7 @@
     python3 tools/watch.py --interval 1.0  # 갱신 주기 변경
 
 미션을 일으키려면 다른 터미널에서:
-    python3 tools/send_request.py --robot-id robot2 --dest trans --dest-floor 2
+    python3 tools/send_request.py --robot-id robot2 --dest GATE_30 --dest-floor 2
     python3 tools/send_event.py   --robot-id robot2 --type FIRE
 """
 

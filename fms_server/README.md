@@ -7,53 +7,6 @@
 > 기준 문서: [`../docs/FMS_서버_구현가이드.md`](../docs/FMS_서버_구현가이드.md), [`../docs/인터페이스_정의서_v2_1.md`](../docs/인터페이스_정의서_v2_1.md)
 > 타 트랙 배포용 인터페이스 계약: [`../docs/INTERFACE_CONTRACT.md`](../docs/INTERFACE_CONTRACT.md)
 
-## ⚡ 빠른 실행 명령어 세트
-
-브로커(Mosquitto 또는 amqtt)가 먼저 떠 있어야 한다.
-
-```bash
-cd ~/alfred_ws/fms_server
-sudo systemctl start mosquitto     # 또는: mosquitto -d  /  amqtt
-```
-
-**A. 한 방에 자동 검증** (정상 3 + 예외 4 + 이상감지 1 + API 3)
-```bash
-python3 tools/integration_test.py
-```
-
-**B. 눈으로 보는 실시간 거동** (터미널 4개)
-```bash
-# 터미널 1: FMS 본체
-python3 main.py
-# 터미널 2~3: 가짜 로봇 2대 (BASE 좌표에서 시작)
-python3 tools/mock_robot.py --robot-id robot2 --start-x -3.2  --start-y 2.12
-python3 tools/mock_robot.py --robot-id robot4 --start-x -2.25 --start-y 3.0
-# 터미널 4: 실시간 대시보드 (0.5초 갱신)
-python3 tools/watch.py
-```
-
-**C. 미션 일으키기** (동기화된 POI 기준)
-```bash
-# ① 층간 릴레이: robot2(1층) → trans(2층), lift에서 인계
-python3 tools/send_request.py --robot-id robot2 --dest trans --dest-floor 2 --origin-floor 1
-# ② 같은 층 직행: robot2(1층) → info(1층)
-python3 tools/send_request.py --robot-id robot2 --dest info  --dest-floor 1 --origin-floor 1
-# ③ 이상감지 / 취소
-python3 tools/send_event.py   --robot-id robot2 --type FIRE
-python3 tools/send_request.py --robot-id robot2 --cancel
-```
-
-**D. 결과 조회** (REST, 읽기 전용)
-```bash
-curl http://localhost:5000/api/robots                  # 로봇별 최신 IF-02 스냅샷
-curl http://localhost:5000/api/missions                # 미션 목록
-curl http://localhost:5000/api/missions/<mission_id>   # 전이 이력 + tasks + handover_latency_ms
-```
-브라우저 관제 대시보드: **http://localhost:5000/** (기본 `admin` / `admin1234`)
-
-전이 흐름: `REQUESTED→ASSIGNED→ESCORTING_TO_HANDOVER→HANDOVER_WAITING→ESCORTING_TO_FINAL→COMPLETED`
-(같은 층은 `ASSIGNED→ESCORTING_TO_FINAL→COMPLETED`).
-
 ## 설계 원칙 (절대 규칙 8개 — 위반 금지)
 
 1. **ROS 금지** — 로봇과의 통신은 MQTT JSON뿐. rclpy import 금지.
@@ -72,7 +25,7 @@ curl http://localhost:5000/api/missions/<mission_id>   # 전이 이력 + tasks +
 | `config.py` | 브로커·토픽·타임아웃 상수·POI 로드 | ✅ M0 |
 | `db.py` | SQLite(WAL) 스키마·적재 | ✅ M0 |
 | `transport.py` | MQTT 래퍼 (**paho 의존 격리**) | ✅ M0 |
-| `poi_table.yaml` | POI 테이블 (Interaction 원본 16개 동기화: 1층 robot2 / 2층 robot4) | ✅ |
+| `poi_table.yaml` | POI 테이블 (값 대기, 구조 스텁) | ✅ M0 |
 | `main.py` | 조립·기동 | ✅ M1 |
 | `tools/echo_test.py` | M0 pub/sub 왕복 검증 | ✅ M0 |
 | `states.py` | Robot/Mission/Task enum 상수 | ✅ M1 |
@@ -135,8 +88,8 @@ curl http://localhost:5000/api/health
 # 터미널 1: FMS / 2~3: mock 로봇 2대 (위와 동일하게 기동)
 
 # 터미널 4: Interaction 시뮬레이터로 미션 시작 (robot2 호출 → IF-01 ESCORT)
-python3 tools/send_request.py --robot-id robot2 --dest trans --dest-floor 2 --origin-floor 1
-#   같은 층 직행 테스트: --dest info --dest-floor 1 --origin-floor 1
+python3 tools/send_request.py --robot-id robot2 --dest GATE_30 --dest-floor 2 --origin-floor 1
+#   같은 층 직행 테스트: --dest-floor 1 --origin-floor 1
 
 # 터미널 5: 결과 조회
 curl http://localhost:5000/api/missions
@@ -180,7 +133,7 @@ python3 tools/watch.py
 핸드오버 지연이 **실시간으로 바뀌는 걸** 본다:
 
 ```bash
-python3 tools/send_request.py --robot-id robot2 --dest trans --dest-floor 2 --origin-floor 1
+python3 tools/send_request.py --robot-id robot2 --dest GATE_30 --dest-floor 2 --origin-floor 1
 python3 tools/send_event.py   --robot-id robot2 --type FIRE
 python3 tools/send_request.py --robot-id robot2 --cancel        # 취소 흐름
 ```
