@@ -1,0 +1,55 @@
+digraph topology_separated {
+  graph [fontname="Noto Sans CJK KR", rankdir=TB, splines=spline,
+         nodesep=0.45, ranksep=0.8, bgcolor="white", labelloc="t", fontsize=22,
+         label="다중 로봇 릴레이 에스코트 — 배치 토폴로지 (월요일 이후: ROS 도메인 분리)"];
+  node  [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", fontsize=11, margin="0.14,0.09"];
+  edge  [fontname="Noto Sans CJK KR", fontsize=10];
+
+  // ───────────── HOST ─────────────
+  subgraph cluster_host {
+    label="HOST PC (중앙 관제 서버)";
+    style="rounded,filled"; fillcolor="#eef3fb"; color="#4a6fa5"; fontsize=15; fontcolor="#2c4a78";
+    fms    [label="FMS 서버\n(상태기계 · 미션관리)\n+ SQLite (기록 전용)", fillcolor="#cfe0f5"];
+    broker [label="Mosquitto\nMQTT broker :1883", fillcolor="#cfe0f5"];
+    fms -> broker [dir=both, color="#4a6fa5", arrowsize=0.7];
+  }
+
+  ctrl [label="관제 UI\n(브라우저)", fillcolor="#f7f0d0", color="#a58b4a"];
+  ctrl -> fms [label="HTTP GET (읽기 전용)", style=dashed, color="#a58b4a", fontcolor="#7a6630"];
+
+  // ───────────── UNIT 2  (도메인 1) ─────────────
+  subgraph cluster_u2 {
+    label="ROBOT UNIT 2    ·    ROS_DOMAIN_ID = 1  ★    ·    namespace /robot2";
+    style="rounded,filled"; fillcolor="#edf7ee"; color="#3f7a8a"; fontsize=13; fontcolor="#2f6063";
+    comp2  [label="연산용 PC\n■ bridge (ROS ↔ MQTT)\nNav2 · YOLO · STT/LLM/TTS*", fillcolor="#d4ebec"];
+    touch2 [label="터치스크린 PC\n고객 UI · 얼굴/터치/Q&A\n마이크 · 스피커", fillcolor="#d4ebec"];
+    tb2    [label="TurtleBot4\nRPi4 · 2D LiDAR · RGBD · 주행", fillcolor="#d4ebec"];
+    comp2 -> touch2 [dir=both, label="ROS 2", color="#3f7a8a", fontcolor="#2f6063", arrowsize=0.7];
+    comp2 -> tb2    [dir=both, label="ROS 2", color="#3f7a8a", fontcolor="#2f6063", arrowsize=0.7];
+  }
+
+  // ───────────── UNIT 4  (도메인 2) ─────────────
+  subgraph cluster_u4 {
+    label="ROBOT UNIT 4    ·    ROS_DOMAIN_ID = 2  ★    ·    namespace /robot4";
+    style="rounded,filled"; fillcolor="#f7f0ee"; color="#a5704a"; fontsize=13; fontcolor="#7a4f2f";
+    comp4  [label="연산용 PC\n■ bridge (ROS ↔ MQTT)\nNav2 · YOLO · STT/LLM/TTS*", fillcolor="#ecddd4"];
+    touch4 [label="터치스크린 PC\n고객 UI · 얼굴/터치/Q&A\n마이크 · 스피커", fillcolor="#ecddd4"];
+    tb4    [label="TurtleBot4\nRPi4 · 2D LiDAR · RGBD · 주행", fillcolor="#ecddd4"];
+    comp4 -> touch4 [dir=both, label="ROS 2", color="#a5704a", fontcolor="#7a4f2f", arrowsize=0.7];
+    comp4 -> tb4    [dir=both, label="ROS 2", color="#a5704a", fontcolor="#7a4f2f", arrowsize=0.7];
+  }
+
+  // ───────────── 랭크 제약: 호스트(상단) → 유닛(하단) ─────────────
+  broker -> comp2 [style=invis, weight=10];
+  broker -> comp4 [style=invis, weight=10];
+
+  // ───────────── MQTT (유닛 ↔ 호스트) — 도메인과 무관, 불변 ─────────────
+  comp2 -> broker [dir=both, constraint=false, label="MQTT JSON\nrobot/robot2/*", color="#c0504d", fontcolor="#8a3835", penwidth=2.0, arrowsize=0.8];
+  comp4 -> broker [dir=both, constraint=false, label="MQTT JSON\nrobot/robot4/*", color="#c0504d", fontcolor="#8a3835", penwidth=2.0, arrowsize=0.8];
+
+  // ───────────── 범례 / 주석 (하단) ─────────────
+  legend [shape=note, fillcolor="#fff7d6", color="#bfa94a", fontsize=10, label=
+"★ 현재(공유) 대비 바뀐 것 = ROS_DOMAIN_ID 뿐\l • UNIT2: 2 → 1,  UNIT4: 2 (유지)  → 두 유닛 DDS가 완전 격리됨\l • namespace는 이제 충돌 방지용으로 필수 아님(유지해도 무해)\l\l바뀌지 않는 것 (중요)\l • MQTT 토픽·페이로드(robot/{id}/*)  — 동일\l • FMS 코드·계약(IF-01/02/03/05)     — 동일\l • bridge는 여전히 유일한 MQTT 창구\l\l→ 분리 작업 = 브리지(연산 PC)의 ROS_DOMAIN_ID 환경변수 변경뿐.\l   브로커 IP·robot_id·고유 client_id 설정은 그대로 재사용.\l"];
+  tb2 -> legend [style=invis, weight=5];
+  tb4 -> legend [style=invis, weight=5];
+}

@@ -1,0 +1,33 @@
+{
+    "ROS2.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_python_tutorials/lib/python3.10/site-packages",
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_openai_tutorials/lib/python3.10/site-packages",
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_navigation/local/lib/python3.10/dist-packages",
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_msgs/local/lib/python3.10/dist-packages",
+        "/home/sungyu/turtlebot4_ws/install/explore_lite_msgs/local/lib/python3.10/dist-packages",
+        "/home/sungyu/a2_mini_ws/install/turtlebot4_yolo/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/install/turtlebot4_image/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/install/turtlebot4_beep/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/install/rokey_pjt/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/build/car_mission",
+        "/home/sungyu/a2_mini_ws/install/car_mission/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_python_tutorials/lib/python3.10/site-packages",
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_openai_tutorials/lib/python3.10/site-packages",
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_navigation/local/lib/python3.10/dist-packages",
+        "/home/sungyu/turtlebot4_ws/install/turtlebot4_msgs/local/lib/python3.10/dist-packages",
+        "/home/sungyu/turtlebot4_ws/install/explore_lite_msgs/local/lib/python3.10/dist-packages",
+        "/home/sungyu/a2_mini_ws/install/turtlebot4_yolo/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/install/turtlebot4_image/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/install/turtlebot4_beep/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/install/rokey_pjt/lib/python3.10/site-packages",
+        "/home/sungyu/a2_mini_ws/build/car_mission",
+        "/home/sungyu/a2_mini_ws/install/car_mission/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}

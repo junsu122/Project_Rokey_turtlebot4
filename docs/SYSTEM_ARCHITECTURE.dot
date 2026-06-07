@@ -1,0 +1,71 @@
+digraph system_architecture {
+  graph [fontname="Noto Sans CJK KR", rankdir=TB, splines=spline,
+         nodesep=0.5, ranksep=0.9, bgcolor="white", labelloc="t", fontsize=22,
+         label="다중 로봇 릴레이 에스코트 — 전체 통신 구조 (제어 평면 + 데이터 평면)"];
+  node  [fontname="Noto Sans CJK KR", shape=box, style="rounded,filled", fontsize=11, margin="0.16,0.10"];
+  edge  [fontname="Noto Sans CJK KR", fontsize=10];
+
+  // ───────────── 관리자 UI (시청자) ─────────────
+  admin [label="관리자 UI (브라우저)\n· 상태/미션/이벤트 조회\n· 로봇 카메라 라이브 영상", fillcolor="#f7f0d0", color="#a58b4a"];
+
+  // ───────────── FMS 호스트 PC ─────────────
+  subgraph cluster_host {
+    label="FMS 호스트 PC (중앙)"; style="rounded,filled"; fillcolor="#eef3fb";
+    color="#4a6fa5"; fontsize=14; fontcolor="#2c4a78";
+    fms    [label="FMS\n(상태기계·미션관리)\n순수 Python·ROS 비의존", fillcolor="#cfe0f5"];
+    broker [label="Mosquitto\nMQTT broker :1883", fillcolor="#cfe0f5"];
+    sqlite [label="SQLite\n(기록 전용)", fillcolor="#dde8f7"];
+    fms -> broker [dir=both, color="#4a6fa5", arrowsize=0.7];
+    fms -> sqlite [color="#4a6fa5", arrowsize=0.7];
+  }
+
+  // ───────────── 로봇 유닛 2 ─────────────
+  subgraph cluster_u2 {
+    label="ROBOT UNIT 2  ·  ROS_DOMAIN_ID  ·  /robot2"; style="rounded,filled";
+    fillcolor="#edf7ee"; color="#4a8a5a"; fontsize=12; fontcolor="#2f6340";
+    comp2  [label="연산 PC\n■ bridge (ROS ↔ IF/MQTT)\n■ WebRTC 영상 송신\nNav2 · YOLO · STT/LLM/TTS", fillcolor="#d4ecd8"];
+    touch2 [label="터치스크린 PC\n고객 UI (Interaction)", fillcolor="#d4ecd8"];
+    tb2    [label="TurtleBot4\nRPi4 · LiDAR · 카메라", fillcolor="#d4ecd8"];
+    comp2 -> touch2 [dir=both, label="ROS2", color="#4a8a5a", fontcolor="#2f6340", arrowsize=0.6];
+    comp2 -> tb2    [dir=both, label="ROS2", color="#4a8a5a", fontcolor="#2f6340", arrowsize=0.6];
+  }
+
+  // ───────────── 로봇 유닛 4 ─────────────
+  subgraph cluster_u4 {
+    label="ROBOT UNIT 4  ·  ROS_DOMAIN_ID  ·  /robot4"; style="rounded,filled";
+    fillcolor="#edf7ee"; color="#4a8a5a"; fontsize=12; fontcolor="#2f6340";
+    comp4  [label="연산 PC\n■ bridge (ROS ↔ IF/MQTT)\n■ WebRTC 영상 송신\nNav2 · YOLO · STT/LLM/TTS", fillcolor="#d4ecd8"];
+    touch4 [label="터치스크린 PC\n고객 UI (Interaction)", fillcolor="#d4ecd8"];
+    tb4    [label="TurtleBot4\nRPi4 · LiDAR · 카메라", fillcolor="#d4ecd8"];
+    comp4 -> touch4 [dir=both, label="ROS2", color="#4a8a5a", fontcolor="#2f6340", arrowsize=0.6];
+    comp4 -> tb4    [dir=both, label="ROS2", color="#4a8a5a", fontcolor="#2f6340", arrowsize=0.6];
+  }
+
+  // ───────────── 랭크 제약 (관리자 UI 위 → 호스트 → 유닛) ─────────────
+  admin  -> broker [style=invis, weight=10];
+  broker -> comp2  [style=invis, weight=10];
+  broker -> comp4  [style=invis, weight=10];
+
+  // ═══════════ 제어 평면 (control plane) ═══════════
+  // MQTT IF-01~05 : 브리지 ↔ 브로커
+  comp2 -> broker [dir=both, constraint=false, label="MQTT  IF-01/02/03/05",
+                   color="#c0504d", fontcolor="#8a3835", penwidth=2.0, arrowsize=0.8];
+  comp4 -> broker [dir=both, constraint=false, label="MQTT  IF-01/02/03/05",
+                   color="#c0504d", fontcolor="#8a3835", penwidth=2.0, arrowsize=0.8];
+  // HTTP REST(GET) : FMS → 관리자 UI (상태/미션/이벤트)
+  fms -> admin [constraint=false, label="HTTP REST (GET)\n상태·미션·이벤트",
+                color="#a58b4a", fontcolor="#7a6630", style=dashed, penwidth=1.6];
+
+  // ═══════════ 데이터 평면 (data plane) — FMS 우회 ═══════════
+  // 카메라 라이브 영상 : 연산 PC → 관리자 UI 직접 (픽셀은 FMS 안 거침)
+  comp2 -> admin [constraint=false, label="영상 WebRTC", color="#7a4ea5",
+                  fontcolor="#5a3580", penwidth=2.2, arrowsize=0.8];
+  comp4 -> admin [constraint=false, label="영상 WebRTC", color="#7a4ea5",
+                  fontcolor="#5a3580", penwidth=2.2, arrowsize=0.8];
+
+  // ───────────── 범례 ─────────────
+  legend [shape=note, fillcolor="#fff7d6", color="#bfa94a", fontsize=10, label=
+"통신 평면\l ─ ROS2 / DDS (초록)  : 유닛 내부 전용\l ━ MQTT IF (빨강)     : 제어 평면 — 상태/명령(작은 JSON), 브리지↔브로커\l ┄ HTTP REST (노랑)   : 제어 평면 — 관제 조회(읽기 전용)\l ━ WebRTC 영상 (보라) : 데이터 평면 — 카메라 픽셀, 연산PC→관리자UI 직접\l\l핵심\l • FMS는 ROS도, 영상 픽셀도 모른다. 작은 IF 메시지만 다룬다.\l • 영상은 데이터 평면으로 FMS를 우회 → 영상 붙여도 FMS 코드 불변.\l • MQTT는 기껏해야 \"스트림 시작\" 신호(시그널링)만 거든다(선택).\l • 브리지가 ROS↔IF 양방향 번역 — 유닛당 1개, 유일 MQTT 창구.\l"];
+  tb2 -> legend [style=invis, weight=5];
+  tb4 -> legend [style=invis, weight=5];
+}
