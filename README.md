@@ -229,3 +229,9 @@ alfred_ws/
 | [docs/FMS_서버_구현가이드.md](docs/FMS_서버_구현가이드.md) | 구현 가이드·절대 규칙 |
 | [fms_server/README.md](fms_server/README.md) | 서버 실행·명령 상세 |
 | docs/*.png | 아키텍처·배치·노드 다이어그램 |
+
+---
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE).
