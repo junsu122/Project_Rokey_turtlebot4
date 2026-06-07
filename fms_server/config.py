@@ -37,12 +37,12 @@ ROBOTS: dict[str, dict] = {
     "robot2": {
         "namespace": "/robot2",
         "ros_domain_id": 2,      # 현재 공유. 분리 후 개별 값으로 교체(브리지 측).
-        "base_poi": "BASE_A",    # 복귀(순찰 홈) 지점 — 값은 맵 작성 후 확정
+        "base_poi": "station",   # 복귀(순찰 홈) 지점 — floor 1
     },
     "robot4": {
         "namespace": "/robot4",
         "ros_domain_id": 2,      # 현재 공유.
-        "base_poi": "BASE_B",
+        "base_poi": "station2",  # 복귀(순찰 홈) 지점 — floor 2
     },
 }
 ROBOT_IDS = list(ROBOTS)
