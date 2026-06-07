@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'paho-mqtt'],
     zip_safe=True,
     maintainer='ROKEY 7기 지능1 Team Alfred',
     maintainer_email='sunq0726@gmail.com',
@@ -20,7 +20,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'fms_bridge_node = alfred_bridge.fms_bridge_node:main',
+            'robot2_state_manager = alfred_bridge.robot2_state_manager:main',
+            'robot4_state_manager = alfred_bridge.robot4_state_manager:main',
+            'fake_robot = alfred_bridge.fake_robot:main',
         ],
     },
 )

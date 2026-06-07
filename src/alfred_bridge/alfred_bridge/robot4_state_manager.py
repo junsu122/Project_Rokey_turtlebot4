@@ -2,12 +2,12 @@
 """robot4 State Manager — FMS task(IF-03)만 따르는 상태 머신 실행 진입점.
 
 실행:
-  ros2 run robot_state_manager robot4_state_manager
+  ros2 run alfred_bridge robot4_state_manager
 """
 import rclpy
 from rclpy.executors import ExternalShutdownException
 
-from robot_state_manager.core import RobotStateManager
+from alfred_bridge.core import RobotStateManager
 
 # ── robot4 설정 ───────────────────────────────────────────────────────────
 ROBOT4_CONFIG = {
