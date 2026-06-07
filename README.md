@@ -22,13 +22,15 @@
 
 ## 0. 시스템 개요
 
-**FMS = Fleet Management System (다중 로봇 관제·운영 서버).** TurtleBot4 2대를 한곳에서 조율한다:
+교통허브에서 **TurtleBot4 2대(robot2=1층, robot4=2층)** 가 고객을 **릴레이로 에스코트**한다. 평소 각 로봇은 정해진 경로를 **순찰**하며 요청을 기다리고, 요청을 받으면 목적지까지 안내하며, 순찰 중 이상 상황을 감지하면 대응한다.
 
-- 고객 요청(IF‑01)을 받아 **미션 생성**, 어느 로봇이 출발/인계할지 **배정**
-- 각 로봇에 **할 일(task, IF‑03)** 발행, 로봇 **상태 보고(IF‑02)** 로 미션 진행 계산 (Mission State는 **FMS만 소유**)
-- 층간 **핸드오버 승인** + **지연(3초 기준) 측정**, 이상감지(IF‑05)·이력 **DB 기록** + **관제 UI** 노출
+### 로봇의 동작 (크게 3가지)
+- **순찰 (기본 상태)** — task가 없으면 스스로 경로를 돌며 "도움이 필요하면 불러주세요" 안내(화면 터치 / "헬로 알프레드")
+- **에스코트** — 고객 요청 수신 → 목적지 안내. 층이 다르면 1층 로봇이 핸드오버 지점까지, 2층 로봇이 이어받아 최종 목적지까지(**릴레이**). 고객 프로필(일반/시각장애 등)에 따라 주행 방식 분기
+- **이벤트 대응** — 순찰 중 FIRE / SUSPICIOUS_PERSON / 유실물 감지 시 규정 동작
 
-FMS는 **로봇 바퀴를 직접 제어하지 않는다.** "무엇을 하라(task)"만 주고, "어떻게(주행)"는 로봇이 한다.
+### FMS의 역할 (중앙 조율)
+로봇은 주행을 스스로 하고, **FMS는 "무엇을 하라(task)"만 조율**한다: 미션 생성·로봇 배정·task(IF‑03) 발행·상태(IF‑02) 관측·핸드오버 승인 및 지연(3초) 측정·이상(IF‑05) 기록·관제 UI. Mission State는 **FMS만 소유**하고, 로봇 바퀴를 직접 제어하지 않는다.
 
 ### 서비스 흐름 (정상 시나리오)
 ```
@@ -73,6 +75,21 @@ FMS는 **로봇 바퀴를 직접 제어하지 않는다.** "무엇을 하라(tas
 | `alfred_bringup` | ament_python | `unit.launch.py` + 로봇별 params(`robot2.yaml`/`robot4.yaml`) + maps |
 
 > 현재 노드 본문은 **스켈레톤(스텁)** 이다. `colcon build`는 통과하며, 각 트랙이 `# TODO` 부분을 채운다.
+
+### 트랙별 노드 책임
+- **Interaction** (`alfred_interaction`): `stt_node`(음성→텍스트) → `llm_node`(목적지 정규화) → `tts_node`(발화), `ui_node`(터치·요청 조립). 목적지 확정 시 IF‑01 요청 생성.
+- **Driving** (`alfred_driving`): `behavior_node`가 **Robot State 단독 소유** + nav2 goal 중재. 순찰·에스코트·이벤트대응은 **노드 분할이 아니라 한 노드 안의 동작 모듈**(상황은 상태이지 프로세스가 아님).
+- **Vision** (`alfred_vision`): `yolo_monitor_node`(이상감지→IF‑05), `video_sender_node`(영상 데이터평면, FMS 우회·선택).
+- **Bridge** (`alfred_bridge`): 유닛의 유일한 MQTT 창구. ROS↔IF 변환·멱등·거절 규칙을 한 곳에 집중.
+
+### 로봇 상태 흐름 (behavior_node FSM)
+```
+PATROL ─(고객 호출)→ INTERACTING ─(IF-03 ESCORT 수락)→ ESCORTING
+       → … → WAITING_HANDOVER → (RETURN_TO_BASE) → RETURNING → PATROL
+```
+- ⚠️ 호출 시 **PATROL→INTERACTING 전이 필수.** PATROL/IDLE에서 받은 ESCORT task는 거절되므로(§2 거절 규칙), 안 바꾸면 자기 escort를 거절한다.
+- 두 번째 로봇(robot4)은 PATROL에서 `MOVE_TO_STANDBY`(ESCORT 계열 아님 → 수락)로 핸드오버 지점에 가 `HANDOVER_READY`가 된 뒤 `ESCORT_TO_FINAL`을 이어받는다.
+- 일반 안내 / 시각장애 안내(ArUco 위치유지)는 `customer_profile`로 고르는 **EscortBehavior 내부 전략**. 사용자 ArUco 추적 등 "베이스를 제어하지 않는 감지"만 별도 노드로 분리 가능.
 
 ### 빌드 & 실행
 
@@ -123,16 +140,18 @@ ros2 launch alfred_bringup unit.launch.py robot_id:=robot4   # 2층 유닛
 
 ---
 
-## 4. 설계 원칙 (절대 규칙 8 — 위반 시 통합이 깨짐)
+## 4. 통합 불변식 (전 트랙 공통 — 위반 시 통합이 깨짐)
 
-1. **ROS 금지** — FMS는 ROS 비의존, MQTT JSON만.
-2. **이벤트 구동** — 블로킹/DB 폴링 금지. 타임아웃은 감시 스레드(타이머)로.
-3. **명령은 task로만** — 목표 상태를 보내지 않음.
-4. **Mission State는 FMS 단독 소유** — 로봇에 전송도, 로봇에서 수신도 안 함.
-5. **Robot State는 로봇 소유** — FMS는 관측만(전이표는 검증용).
-6. **DB는 기록 전용** — 통신 수단으로 쓰지 않음.
-7. **Flask는 읽기 전용 GET** — 로봇 제어·미션 생성을 HTTP로 받지 않음(로그인 인증은 예외).
-8. **순찰은 task가 아님** — FMS는 PATROL을 지시하지 않음.
+역할 경계가 핵심이다. 로봇·FMS 어느 쪽이든 지켜야 한다:
+
+1. **명령은 task로만** — FMS는 목표 상태가 아니라 task(IF‑03)만 보낸다. task가 로봇의 **유일한 외부 입력**.
+2. **Robot State는 로봇 소유** — `behavior_node`만 전이·발행(IF‑02). FMS는 관측·검증만.
+3. **Mission State는 FMS 소유** — 로봇에 보내지도, 로봇에서 받지도 않는다.
+4. **순찰은 task가 아님** — task 없으면 로봇이 스스로 순찰. FMS는 PATROL을 지시하지 않고 관측만.
+5. **유닛↔FMS는 MQTT JSON(IF)만** — ROS는 유닛 내부 한정, 변환은 브리지 전담. FMS는 ROS 비의존.
+6. **멱등·거절** — QoS1 중복은 `task_id`로 무시. PATROL/IDLE에서 받은 ESCORT task는 REJECT.
+
+> FMS **내부 구현** 규칙(이벤트 구동·블로킹 금지·DB 기록전용·Flask 읽기전용 등 "절대 규칙 8") 전문은 [`docs/FMS_서버_구현가이드.md`](docs/FMS_서버_구현가이드.md)에.
 
 ---
 
