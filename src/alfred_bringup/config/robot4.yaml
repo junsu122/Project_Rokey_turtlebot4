@@ -1,0 +1,17 @@
+# robot4 (2층) 유닛 파라미터. unit.launch.py가 모든 노드에 주입.
+# 노드별 네임스페이스(/robot4) 아래에서 평가됨.
+
+/robot4/fms_bridge_node:
+  ros__parameters:
+    robot_id: robot4
+    broker_host: 192.168.0.20   # TODO: FMS 호스트 PC 고정 IP (robot2와 동일 브로커)
+    broker_port: 1883
+    client_id: bridge_robot4    # ⚠ 유닛마다 유일
+
+/robot4/behavior_node:
+  ros__parameters:
+    robot_id: robot4
+
+/robot4/yolo_monitor_node:
+  ros__parameters:
+    robot_id: robot4
