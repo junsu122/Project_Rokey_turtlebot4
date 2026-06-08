@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import socket
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,8 +33,27 @@ def _count(sql: str, params: tuple = ()) -> int:
     return int((db.query_one(sql, params) or {}).get("c", 0))
 
 
-def _robot_snapshots(registry) -> list[dict]:
-    snapshots = {snap["robot_id"]: dict(snap) for snap in registry.all_snapshots()}
+def _row_to_robot(row: dict) -> dict:
+    return {
+        "robot_id": row.get("robot_id"),
+        "floor": row.get("floor"),
+        "state": row.get("state"),
+        "pose": {
+            "x": row.get("x"),
+            "y": row.get("y"),
+            "theta": row.get("theta"),
+        },
+        "battery": row.get("battery"),
+        "current_task_id": row.get("current_task_id"),
+        "task_status": row.get("task_status"),
+        "error_code": row.get("error_code"),
+        "last_seen": row.get("last_seen"),
+    }
+
+
+def _robot_snapshots() -> list[dict]:
+    rows = db.query_all("SELECT * FROM latest_robot_status ORDER BY robot_id")
+    snapshots = {row["robot_id"]: _row_to_robot(row) for row in rows}
     merged: list[dict] = []
     for robot_id in config.ROBOT_IDS:
         meta = config.ROBOTS.get(robot_id, {})
@@ -130,11 +148,11 @@ def create_app(registry) -> Flask:
 
     @app.get("/api/health")
     def health():
-        return jsonify({"status": "ok", "robots": len(_robot_snapshots(registry))})
+        return jsonify({"status": "ok", "robots": len(_robot_snapshots())})
 
     @app.get("/api/robots")
     def robots():
-        return jsonify(_robot_snapshots(registry))
+        return jsonify(_robot_snapshots())
 
     @app.get("/api/events")
     def events():
@@ -239,7 +257,7 @@ def create_app(registry) -> Flask:
 
         return jsonify({
             "robots": {
-                "known": len(_robot_snapshots(registry)),
+                "known": len(_robot_snapshots()),
                 "status_log": _count("SELECT COUNT(*) c FROM robot_status_log"),
             },
             "events": {
@@ -259,33 +277,37 @@ def create_app(registry) -> Flask:
 
     @app.get("/api/system")
     def system():
-        mqtt_ok = False
-        try:
-            with socket.create_connection((config.MQTT_HOST, config.MQTT_PORT), timeout=0.4):
-                mqtt_ok = True
-        except OSError:
-            mqtt_ok = False
-
         db_ok = True
         try:
             db.query_one("SELECT 1 AS ok")
         except Exception:
             db_ok = False
 
-        snaps = _robot_snapshots(registry)
+        snaps = _robot_snapshots()
         online = 0
         for snap in snaps:
             if snap.get("online"):
                 online += 1
 
         counts = {
+            "latest_robot_status": _count("SELECT COUNT(*) c FROM latest_robot_status"),
             "robot_status_log": _count("SELECT COUNT(*) c FROM robot_status_log"),
             "events": _count("SELECT COUNT(*) c FROM events"),
             "ui_usage_log": _count("SELECT COUNT(*) c FROM ui_usage_log"),
             "monitor_counters": _count("SELECT COUNT(*) c FROM monitor_counters"),
         }
         return jsonify({
-            "mqtt": {"ok": mqtt_ok, "host": config.MQTT_HOST, "port": config.MQTT_PORT},
+            "ros": {
+                "mode": "direct",
+                "robot_state_topics": [
+                    config.ros_robot_state_topic(robot_id)
+                    for robot_id in config.ROBOT_IDS
+                ],
+                "event_topics": [
+                    config.ros_event_topic(robot_id)
+                    for robot_id in config.ROBOT_IDS
+                ],
+            },
             "db": {"ok": db_ok, "path": os.path.basename(config.DB_PATH)},
             "robots": {
                 "total": len(snaps),

@@ -18,6 +18,20 @@ _lock = threading.Lock()
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS latest_robot_status (
+    robot_id        TEXT PRIMARY KEY,
+    floor           INTEGER,
+    state           TEXT,
+    battery         INTEGER,
+    x               REAL,
+    y               REAL,
+    theta           REAL,
+    current_task_id TEXT,
+    task_status     TEXT,
+    error_code      TEXT,
+    last_seen       TEXT
+);
+
 CREATE TABLE IF NOT EXISTS robot_status_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     robot_id    TEXT,
@@ -64,6 +78,7 @@ CREATE TABLE IF NOT EXISTS monitor_counters (
 );
 
 CREATE INDEX IF NOT EXISTS idx_status_log_robot ON robot_status_log(robot_id, at DESC);
+CREATE INDEX IF NOT EXISTS idx_latest_robot_floor ON latest_robot_status(floor);
 CREATE INDEX IF NOT EXISTS idx_events_at        ON events(at DESC);
 CREATE INDEX IF NOT EXISTS idx_usage_at         ON ui_usage_log(at DESC);
 """

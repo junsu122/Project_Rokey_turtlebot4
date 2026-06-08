@@ -253,12 +253,13 @@ function renderEvents(id, events, active=false){
     </tr>`).join('') + `</table>` : '<div class="empty">없음</div>';
 }
 function renderSystem(sys){
-  const mq = sys.mqtt || {}, db = sys.db || {}, r = sys.robots || {}, c = sys.counts || {};
+  const ros = sys.ros || {}, db = sys.db || {}, r = sys.robots || {}, c = sys.counts || {};
+  const topics = [...(ros.robot_state_topics || []), ...(ros.event_topics || [])].join(', ');
   $('system').innerHTML = `<table>
-    <tr><th>MQTT</th><td>${mq.ok?'정상':'오류'} · ${esc(mq.host)}:${esc(mq.port)}</td></tr>
+    <tr><th>ROS2</th><td>${esc(ros.mode || 'direct')} · ${esc(topics || '-')}</td></tr>
     <tr><th>DB</th><td>${db.ok?'정상':'오류'} · ${esc(db.path)}</td></tr>
     <tr><th>robots</th><td>${r.online||0}/${r.total||0} online · timeout ${r.timeout_s}s</td></tr>
-    <tr><th>rows</th><td>status ${c.robot_status_log||0} · events ${c.events||0} · usage ${c.ui_usage_log||0} · counters ${c.monitor_counters||0}</td></tr>
+    <tr><th>rows</th><td>latest ${c.latest_robot_status||0} · status ${c.robot_status_log||0} · events ${c.events||0} · usage ${c.ui_usage_log||0} · counters ${c.monitor_counters||0}</td></tr>
   </table>`;
 }
 async function resolveEvent(id){

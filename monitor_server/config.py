@@ -12,12 +12,6 @@ BASE_DIR = Path(__file__).resolve().parent
 
 PROTOCOL_VERSION = "2.1"
 
-# MQTT broker.
-MQTT_HOST = os.getenv("FMS_MQTT_HOST", "localhost")
-MQTT_PORT = int(os.getenv("FMS_MQTT_PORT", "1883"))
-MQTT_KEEPALIVE = int(os.getenv("FMS_MQTT_KEEPALIVE", "60"))
-MQTT_CLIENT_ID = os.getenv("FMS_MQTT_CLIENT_ID", "monitor_server")
-
 # Robot metadata is informational only. No dispatch/control decisions are made.
 ROBOTS: dict[str, dict] = {
     "robot2": {"namespace": "/robot2", "ros_domain_id": 2, "floor": 1},
@@ -26,19 +20,16 @@ ROBOTS: dict[str, dict] = {
 ROBOT_IDS = list(ROBOTS)
 
 
-def topic_status(robot_id: str) -> str:
-    return f"robot/{robot_id}/status"
+def ros_robot_state_topic(robot_id: str) -> str:
+    return f"/{robot_id}/robot_state"
 
 
-def topic_event(robot_id: str) -> str:
-    return f"robot/{robot_id}/event"
+def ros_event_topic(robot_id: str) -> str:
+    return f"/{robot_id}/vision/alert"
 
 
-TOPIC_STATUS_WILDCARD = "robot/+/status"
-TOPIC_EVENT_WILDCARD = "robot/+/event"
-
-QOS_STATUS = 0
-QOS_EVENT = 1
+ROS_QOS_STATUS = int(os.getenv("FMS_ROS_QOS_STATUS", "10"))
+ROS_QOS_EVENT = int(os.getenv("FMS_ROS_QOS_EVENT", "10"))
 
 # Used only to mark dashboard freshness/offline status.
 STATUS_TIMEOUT = float(os.getenv("FMS_STATUS_TIMEOUT", "10.0"))

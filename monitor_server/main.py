@@ -1,6 +1,6 @@
 """Monitoring server entry point.
 
-This process only observes incoming MQTT messages and serves the dashboard/API.
+This process only observes incoming ROS2 messages and serves the dashboard/API.
 It does not create missions, publish robot tasks, or control robot behavior.
 """
 
@@ -10,12 +10,13 @@ import logging
 import signal
 import threading
 
+import rclpy
+
 import api
 import config
 import db
-import event_service
+from ros_ingest import RosIngestNode
 from robot_registry import RobotRegistry
-from transport import MqttTransport
 
 
 logging.basicConfig(
@@ -27,21 +28,16 @@ logger = logging.getLogger("monitor.main")
 
 class MonitorServer:
     def __init__(self) -> None:
-        self.transport = MqttTransport()
         self.registry = RobotRegistry()
-        self._stop = threading.Event()
+        self.ros_node: RosIngestNode | None = None
+        self._stopped = False
 
     def start(self) -> None:
         db.init_db()
         logger.info("SQLite ready (WAL): %s", config.DB_PATH)
 
-        self.transport.connect()
-        self.transport.loop_start()
-
-        self.transport.subscribe(
-            config.TOPIC_STATUS_WILDCARD, self._on_status, config.QOS_STATUS)
-        self.transport.subscribe(
-            config.TOPIC_EVENT_WILDCARD, self._on_event, config.QOS_EVENT)
+        rclpy.init(args=None)
+        self.ros_node = RosIngestNode(self.registry)
 
         threading.Thread(
             target=api.run_api,
@@ -50,26 +46,31 @@ class MonitorServer:
             name="flask-api",
         ).start()
 
-        logger.info("monitor server ready - status/event ingest + dashboard API")
-
-    def _on_status(self, _topic: str, payload: dict) -> None:
-        self.registry.update_from_status(payload)
-
-    def _on_event(self, _topic: str, payload: dict) -> None:
-        event_service.record_event(payload)
+        logger.info("monitor server ready - ROS2 ingest + dashboard API")
 
     def stop(self) -> None:
+        if self._stopped:
+            return
+        self._stopped = True
         logger.info("monitor server shutting down")
-        self._stop.set()
-        self.transport.loop_stop()
-        self.transport.disconnect()
+        if self.ros_node is not None:
+            self.ros_node.destroy_node()
+            self.ros_node = None
+        if rclpy.ok():
+            rclpy.shutdown()
         db.close()
 
     def run_forever(self) -> None:
         self.start()
-        signal.signal(signal.SIGINT, lambda *_: self.stop())
-        signal.signal(signal.SIGTERM, lambda *_: self.stop())
-        self._stop.wait()
+        signal.signal(signal.SIGINT, lambda *_: rclpy.shutdown())
+        signal.signal(signal.SIGTERM, lambda *_: rclpy.shutdown())
+        try:
+            if self.ros_node is not None:
+                rclpy.spin(self.ros_node)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self.stop()
 
 
 def main() -> None:
