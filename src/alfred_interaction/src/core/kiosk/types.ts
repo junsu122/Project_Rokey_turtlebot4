@@ -1,7 +1,17 @@
-import type { NavigationProgress, NavigationSession } from '@/core/domain';
+import type {
+  DetectionType,
+  NavigationProgress,
+  NavigationSession,
+} from '@/core/domain';
 
-/** The five top-level kiosk screens (the finite states). */
-export type KioskScreen = 'patrol' | 'home' | 'map' | 'voice' | 'guiding';
+/** The top-level kiosk screens (the finite states). */
+export type KioskScreen =
+  | 'patrol'
+  | 'home'
+  | 'map'
+  | 'voice'
+  | 'guiding'
+  | 'alert';
 
 /**
  * Accessibility mode. `visually_impaired` is entered by the patrol wake word
@@ -18,6 +28,8 @@ export interface KioskState {
   staffCallActive: boolean;
   /** The active escort session while screen === 'guiding'. */
   session: NavigationSession | null;
+  /** Active emergency detection while screen === 'alert' (requirement ver03). */
+  alert: DetectionType | null;
 }
 
 export type KioskEvent =
@@ -31,4 +43,6 @@ export type KioskEvent =
   | { type: 'END_GUIDING' } // guiding → patrol (requirement #10)
   | { type: 'IDLE_TIMEOUT' } // any active screen → patrol
   | { type: 'OPEN_STAFF_CALL' } // requirement #3/#11
-  | { type: 'CLOSE_STAFF_CALL' };
+  | { type: 'CLOSE_STAFF_CALL' }
+  | { type: 'DETECTION'; detection: DetectionType } // YOLO alert (ver03) → alert
+  | { type: 'CLEAR_ALERT' }; // alert → patrol (staff dismiss)

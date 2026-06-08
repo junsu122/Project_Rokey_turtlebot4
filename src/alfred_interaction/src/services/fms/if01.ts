@@ -7,7 +7,7 @@ import { makeId } from '@/core/utils/id';
  */
 export const IF_VERSION = '2.0';
 
-export type If01RequestType = 'ESCORT' | 'CANCEL';
+export type If01RequestType = 'ESCORT' | 'CANCEL' | 'INTERACTING';
 
 /** Drives the robot's motion params / arrival greeting (정의서 §2). */
 export type CustomerProfile =
@@ -59,11 +59,32 @@ export interface If01CancelRequest extends If01Base {
   target_request_id: string;
 }
 
-export type If01Request = If01EscortRequest | If01CancelRequest;
+/**
+ * IF-01 INTERACTING — a customer just started interacting with this kiosk
+ * (patrol → home/voice via touch or the "hello Alfred" wake word). Lets the FMS
+ * mark this robot busy before any destination is known. Same envelope as ESCORT
+ * minus `destination` (none yet); `origin`/`customer` carry what we do know.
+ */
+export interface If01InteractingRequest extends If01Base {
+  request_type: 'INTERACTING';
+  origin: If01Origin;
+  customer: If01Customer;
+}
+
+export type If01Request =
+  | If01EscortRequest
+  | If01CancelRequest
+  | If01InteractingRequest;
 
 export interface EscortRequestInput {
   robotId: string;
   destination: { poiId: string; floor: number };
+  origin: If01Origin;
+  customer: If01Customer;
+}
+
+export interface InteractingRequestInput {
+  robotId: string;
   origin: If01Origin;
   customer: If01Customer;
 }
@@ -99,6 +120,25 @@ export function buildEscortRequest(
   };
 }
 
+/**
+ * Build an IF-01 INTERACTING notification for the moment a customer engages the
+ * kiosk (leaves patrol). No destination yet — only robot/origin/customer.
+ */
+export function buildInteractingRequest(
+  input: InteractingRequestInput,
+): If01InteractingRequest {
+  return {
+    msg_id: makeId('msg'),
+    version: IF_VERSION,
+    request_id: makeId('REQ'),
+    robot_id: input.robotId,
+    request_type: 'INTERACTING',
+    origin: input.origin,
+    customer: input.customer,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 /** Build an IF-01 CANCEL targeting a prior request. New request_id each time. */
 export function buildCancelRequest(
   robotId: string,
@@ -113,4 +153,23 @@ export function buildCancelRequest(
     target_request_id: targetRequestId,
     timestamp: new Date().toISOString(),
   };
+}
+
+/** ROS string types that carry the IF-01 JSON as text in their `data` field. */
+const STRING_MSG_TYPES = new Set(['std_msgs/String', 'std_msgs/msg/String']);
+
+/**
+ * Shape the rosbridge `msg` payload for an IF-01 request given the topic's ROS
+ * type. rosbridge can only publish to a topic whose message type it knows.
+ *
+ * - `std_msgs/String` (default): the whole request is JSON-serialized into
+ *   `.data` — the universal "ship arbitrary JSON over ROS" form. The consumer
+ *   does `json.loads(msg.data)`.
+ * - any other (custom) type: the structured request is sent as-is, so its fields
+ *   map 1:1 onto a matching .msg definition on the robot side.
+ */
+export function toRosPayload(request: If01Request, msgType: string): unknown {
+  return STRING_MSG_TYPES.has(msgType)
+    ? { data: JSON.stringify(request) }
+    : request;
 }

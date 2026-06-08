@@ -26,6 +26,9 @@ export class WebSpeechTtsService implements TtsService {
     synth.cancel(); // never overlap utterances
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = LANG_TAG[language];
+    if (options?.volume !== undefined) utter.volume = options.volume;
+    if (options?.rate !== undefined) utter.rate = options.rate;
+    if (options?.pitch !== undefined) utter.pitch = options.pitch;
     if (options?.onEnd) {
       utter.onend = () => options.onEnd?.();
       utter.onerror = () => options.onEnd?.(); // don't hang chained actions

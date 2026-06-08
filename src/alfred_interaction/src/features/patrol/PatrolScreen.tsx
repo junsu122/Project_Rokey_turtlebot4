@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RobotFace, ScreenFrame } from '@/components';
-import { useStrings } from '@/config';
+import { floorLevel, kioskConfig, useStrings } from '@/config';
 import { isWakeWordSupported, useAnyInput, useWakeWord } from '@/core/hooks';
 import { useLanguage } from '@/core/i18n';
 import { useKioskDispatch } from '@/core/kiosk';
-import { useServices } from '@/services';
+import {
+  buildInteractingRequest,
+  defaultCustomer,
+  useServices,
+  type CustomerProfile,
+} from '@/services';
 import styles from './PatrolScreen.module.css';
 
 /** Wake phrases that start the visually-impaired voice flow. */
@@ -28,15 +33,42 @@ export function PatrolScreen() {
   const dispatch = useKioskDispatch();
   const strings = useStrings();
   const { language } = useLanguage();
-  const { tts } = useServices();
+  const { tts, fms } = useServices();
   const [wakeOn, setWakeOn] = useState(true);
+  /** Send the patrol→interaction INTERACTING notice at most once per visit. */
+  const interactingSentRef = useRef(false);
 
-  useAnyInput(() => dispatch({ type: 'WAKE' }));
+  /**
+   * Leave patrol. Publishes IF-01 INTERACTING (so the FMS marks this robot busy
+   * before any destination is known), then runs the screen transition. Touch
+   * → general Home (#3); wake word → visually-impaired voice flow.
+   */
+  const enterInteraction = useCallback(
+    (profile: CustomerProfile, event: 'WAKE' | 'WAKE_VOICE') => {
+      if (!interactingSentRef.current) {
+        interactingSentRef.current = true;
+        void fms.sendRequest(
+          buildInteractingRequest({
+            robotId: kioskConfig.robotId,
+            origin: {
+              floor: floorLevel(kioskConfig.currentFloorId),
+              pose: kioskConfig.originPose,
+            },
+            customer: defaultCustomer(profile, language),
+          }),
+        );
+      }
+      dispatch({ type: event });
+    },
+    [fms, dispatch, language],
+  );
+
+  useAnyInput(() => enterInteraction('GENERAL', 'WAKE'));
   useWakeWord({
     enabled: wakeOn && isWakeWordSupported(),
     language,
     phrases: WAKE_WORDS,
-    onWake: () => dispatch({ type: 'WAKE_VOICE' }),
+    onWake: () => enterInteraction('VISUALLY_IMPAIRED', 'WAKE_VOICE'),
   });
 
   // Periodic self-introduction (accessibility).
@@ -79,7 +111,7 @@ export function PatrolScreen() {
           onClick={(event) => {
             // Don't also trigger the window-level "any input → Home" wake.
             event.stopPropagation();
-            dispatch({ type: 'WAKE_VOICE' });
+            enterInteraction('VISUALLY_IMPAIRED', 'WAKE_VOICE');
           }}
         >
           {strings.patrol.wakeHint}

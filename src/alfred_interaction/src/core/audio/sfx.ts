@@ -52,3 +52,62 @@ export function playClick(): void {
 export function playBeep(): void {
   tone(880, 170, 0.1);
 }
+
+/** Emergency siren flavours (requirement ver03). */
+export type SirenKind = 'fire' | 'police';
+
+// [lowHz, highHz, halfPeriodSec] — 'fire'(119) wails slowly, 'police'(112) yelps.
+const SIREN_SHAPE: Record<SirenKind, [number, number, number]> = {
+  fire: [560, 1040, 0.5],
+  police: [700, 1300, 0.18],
+};
+
+/**
+ * Play a wailing siren for `durationMs` by sweeping one oscillator's frequency
+ * back and forth (no audio assets). Returns a stop() to cut it short. The alert
+ * screen loops short bursts between TTS announcements so the voice stays clear.
+ */
+export function playSiren(kind: SirenKind, durationMs: number): () => void {
+  const c = getCtx();
+  if (!c) return () => {};
+  const [lo, hi, half] = SIREN_SHAPE[kind];
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = 'sawtooth';
+
+  const now = c.currentTime;
+  const end = now + durationMs / 1000;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.16, now + 0.04);
+
+  // Schedule alternating up/down frequency ramps across the whole duration.
+  let t = now;
+  let up = true;
+  osc.frequency.setValueAtTime(lo, t);
+  while (t < end) {
+    const next = Math.min(t + half, end);
+    osc.frequency.linearRampToValueAtTime(up ? hi : lo, next);
+    t = next;
+    up = !up;
+  }
+
+  gain.gain.setValueAtTime(0.16, Math.max(now + 0.04, end - 0.05));
+  gain.gain.linearRampToValueAtTime(0.0001, end);
+  osc.connect(gain);
+  gain.connect(c.destination);
+  osc.start(now);
+  osc.stop(end + 0.03);
+
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    try {
+      gain.gain.cancelScheduledValues(c.currentTime);
+      gain.gain.setValueAtTime(0.0001, c.currentTime);
+      osc.stop(c.currentTime + 0.02);
+    } catch {
+      /* already stopped */
+    }
+  };
+}

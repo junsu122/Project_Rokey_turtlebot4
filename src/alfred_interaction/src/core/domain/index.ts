@@ -29,3 +29,6 @@ export type {
   NavigationSession,
 } from './navigation';
 export { isTerminalPhase } from './navigation';
+
+export type { DetectionType } from './detection';
+export { DETECTION_TYPES, parseDetectionLabel } from './detection';

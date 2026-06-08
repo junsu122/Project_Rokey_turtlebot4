@@ -5,6 +5,7 @@ export const initialKioskState: KioskState = {
   mode: 'general',
   staffCallActive: false,
   session: null,
+  alert: null,
 };
 
 /**
@@ -62,6 +63,20 @@ export function kioskReducer(state: KioskState, event: KioskEvent): KioskState {
 
     case 'CLOSE_STAFF_CALL':
       return { ...state, staffCallActive: false };
+
+    case 'DETECTION':
+      // Requirement ver03: a YOLO emergency takes over the whole kiosk from any
+      // screen. Drop any staff popup so nothing covers the alert.
+      return {
+        ...state,
+        screen: 'alert',
+        alert: event.detection,
+        staffCallActive: false,
+      };
+
+    case 'CLEAR_ALERT':
+      // Staff dismissed the alert → back to a clean patrol.
+      return state.screen === 'alert' ? { ...initialKioskState } : state;
 
     default:
       return state;

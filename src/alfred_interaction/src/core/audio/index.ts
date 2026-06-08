@@ -1,1 +1,2 @@
-export { unlockAudio, playClick, playBeep } from './sfx';
+export { unlockAudio, playClick, playBeep, playSiren } from './sfx';
+export type { SirenKind } from './sfx';
