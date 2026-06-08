@@ -3,10 +3,10 @@ import json
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from alfred_vision.fire_handler import FireHandler
-from alfred_vision.injured_handler import InjuredHandler
-from alfred_vision.suspicious_handler import SuspiciousHandler
-from alfred_vision.lost_item_handler import LostItemHandler
+from alfred_vision.handlers.fire_handler import FireHandler
+from alfred_vision.handlers.injured_handler import InjuredHandler
+from alfred_vision.handlers.suspicious_handler import SuspiciousHandler
+from alfred_vision.handlers.lost_item_handler import LostItemHandler
 
 
 class EventHandlerNode(Node):

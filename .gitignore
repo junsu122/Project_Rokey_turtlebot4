@@ -1,3 +1,5 @@
+.gitignore
+
 # ===== ROS2 / colcon 산출물 =====
 /build/
 /install/
@@ -23,6 +25,7 @@ fms_server/fms.db-shm
 *.log
 .idea/
 *.swp
+.vscode
 
 # ===== 모델 파일 (대형 바이너리 — LFS 또는 제외) =====
 *.pt
