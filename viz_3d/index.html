@@ -493,8 +493,33 @@ const DEFAULT_FLOOR_DATA = {
 };
 const LS_KEY='fms_floor_data_v6';
 let FLOOR_DATA = JSON.parse(JSON.stringify(DEFAULT_FLOOR_DATA));
-(function loadLS(){ try{ const s=localStorage.getItem(LS_KEY); if(s){const d=JSON.parse(s); if(d[1]&&d[2]) FLOOR_DATA=d;} }catch(e){} })();
-function saveLS(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(FLOOR_DATA)); }catch(e){} }
+function validFloorData(d){ return d && Array.isArray(d[1]) && Array.isArray(d[2]); }
+(function loadLS(){ try{ const s=localStorage.getItem(LS_KEY); if(s){const d=JSON.parse(s); if(validFloorData(d)) FLOOR_DATA=d;} }catch(e){} })();
+let saveFloorTimer=null;
+function saveLS(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(FLOOR_DATA)); }catch(e){}
+  clearTimeout(saveFloorTimer);
+  saveFloorTimer=setTimeout(()=>{
+    fetch('/api/floor_data',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'same-origin',
+      body:JSON.stringify(FLOOR_DATA)
+    }).catch(()=>{});
+  },250);
+}
+async function loadServerFloorData(){
+  try{
+    const res=await fetch('/api/floor_data',{cache:'no-store',credentials:'same-origin'});
+    if(!res.ok) return;
+    const d=await res.json();
+    if(validFloorData(d)){
+      FLOOR_DATA=d;
+      try{ localStorage.setItem(LS_KEY, JSON.stringify(FLOOR_DATA)); }catch(e){}
+      rebuildFloor(1); rebuildFloor(2);
+    }
+  }catch(e){}
+}
 
 const floorGroup={1:new THREE.Group(), 2:new THREE.Group()};
 function buildFloorInto(n){
@@ -505,6 +530,7 @@ function buildFloorInto(n){
 function rebuildFloor(n){ buildFloorInto(n); }
 buildFloorInto(1); buildFloorInto(2);
 scene.add(floorGroup[1], floorGroup[2]);
+loadServerFloorData();
 
 // ===== Per-floor markers =====
 const markerGroup={1:new THREE.Group(), 2:new THREE.Group()};
@@ -672,7 +698,7 @@ $('resetBtn').addEventListener('click',()=>{
   if(!confirm('맵을 기본값으로 초기화할까요? (저장된 편집 삭제)')) return;
   FLOOR_DATA=JSON.parse(JSON.stringify(DEFAULT_FLOOR_DATA));
   localStorage.removeItem(LS_KEY);
-  rebuildFloor(1); rebuildFloor(2); selectItem(null,null);
+  rebuildFloor(1); rebuildFloor(2); saveLS(); selectItem(null,null);
 });
 ['pLabel','pStatus','pW','pD','pX','pZ'].forEach(id=>{
   $(id).addEventListener('change',applyEdit);

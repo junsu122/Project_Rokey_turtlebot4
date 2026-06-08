@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ import db
 logger = logging.getLogger("monitor.api")
 WEB_DIR = Path(__file__).resolve().parent / "web"
 VIZ_DIR = Path(__file__).resolve().parent.parent / "viz_3d"
+FLOOR_DATA_PATH = WEB_DIR / "maps" / "floor_data.json"
 
 
 def _age_seconds(iso: str | None) -> float | None:
@@ -134,6 +136,29 @@ def create_app(registry) -> Flask:
         if not p.exists():
             return jsonify({"floors": []})
         return app.response_class(p.read_text(encoding="utf-8"), mimetype="application/json")
+
+    @app.get("/api/floor_data")
+    def floor_data():
+        if not FLOOR_DATA_PATH.exists():
+            return jsonify({})
+        return app.response_class(
+            FLOOR_DATA_PATH.read_text(encoding="utf-8"),
+            mimetype="application/json",
+        )
+
+    @app.post("/api/floor_data")
+    def save_floor_data():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "invalid floor data"}), 400
+        if not isinstance(data.get("1"), list) or not isinstance(data.get("2"), list):
+            return jsonify({"error": "floor data must contain 1 and 2"}), 400
+        FLOOR_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        FLOOR_DATA_PATH.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return jsonify({"ok": True})
 
     @app.get("/maps/<path:fname>")
     def map_file(fname: str):
