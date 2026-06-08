@@ -25,7 +25,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="IF-05 발행 (Vision 시뮬레이터)")
     parser.add_argument("--robot-id", required=True)
     parser.add_argument("--type", required=True,
-                        choices=["FIRE", "SUSPICIOUS_PERSON", "EMERGENCY_PATIENT"])
+                        choices=["FIRE", "SUSPICIOUS_PERSON", "EMERGENCY_PATIENT", "LOST_ITEM"])
+    parser.add_argument("--class", dest="event_class", default=None,
+                        help="detector class name, e.g. gun, knife, fire, lost_item")
     parser.add_argument("--confidence", type=float, default=0.9)
     parser.add_argument("--floor", type=int, default=1)
     parser.add_argument("--x", type=float, default=0.0)
@@ -44,6 +46,7 @@ def main() -> int:
         confidence=args.confidence,
         location={"x": args.x, "y": args.y, "floor": args.floor},
         snapshot_ref=args.snapshot_ref,
+        event_class=args.event_class,
     )
     t.publish(config.topic_event(args.robot_id), msg, config.QOS_EVENT)
     print(f"▶ IF-05 {args.type}: {args.robot_id} (conf={args.confidence}, floor={args.floor})")

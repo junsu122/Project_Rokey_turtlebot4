@@ -1,12 +1,7 @@
-"""SQLite(WAL) 스키마 생성·적재 — 구현가이드 §6.
+"""SQLite storage for the monitoring server.
 
-절대 규칙 6: DB는 **기록 전용**이다. 컴포넌트 간 통신 수단으로 쓰지 않는다.
-모든 실시간 흐름은 MQTT, DB는 결과 적재(블랙박스/증빙/관제 이력)만 담당.
-
-용도(가이드 §6):
-- 통합 디버깅 블랙박스
-- 핸드오버 3초 증빙(missions.handover_latency_ms) — 수락 기준
-- 관제 이력 / FMS 재시작 시 미완료 mission 발견 → 안전 복귀
+The database stores observations only: robot status changes, detector events,
+and future UI/operator usage counters. It is not used as a command queue.
 """
 
 from __future__ import annotations
@@ -18,58 +13,11 @@ from datetime import datetime, timezone
 import config
 
 
-# 단일 연결을 여러 스레드(MQTT 콜백 / Flask / 타임아웃 감시)가 공유.
-# WAL은 다중 reader + 단일 writer를 허용하므로, write 직렬화를 위해 Lock을 둔다.
 _conn: sqlite3.Connection | None = None
 _lock = threading.Lock()
 
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS requests (
-    request_id   TEXT PRIMARY KEY,
-    robot_id     TEXT,
-    request_type TEXT,
-    payload_json TEXT,
-    received_at  TEXT
-);
-
-CREATE TABLE IF NOT EXISTS missions (
-    mission_id          TEXT PRIMARY KEY,
-    request_id          TEXT,
-    state               TEXT,
-    start_robot         TEXT,
-    next_robot          TEXT,
-    dest_poi            TEXT,
-    customer_profile    TEXT,
-    language            TEXT,
-    created_at          TEXT,
-    completed_at        TEXT,
-    handover_latency_ms INTEGER
-);
-
-CREATE TABLE IF NOT EXISTS mission_transitions (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    mission_id TEXT,
-    from_state TEXT,
-    to_state   TEXT,
-    trigger    TEXT,
-    at         TEXT
-);
-
-CREATE TABLE IF NOT EXISTS tasks (
-    task_id      TEXT PRIMARY KEY,
-    mission_id   TEXT,
-    robot_id     TEXT,
-    task_type    TEXT,
-    goal_poi     TEXT,
-    issued_at    TEXT,
-    ack          TEXT,
-    ack_at       TEXT,
-    final_status TEXT,
-    finished_at  TEXT
-);
-
--- 전이/변화 시에만 INSERT (1~2Hz 주기 보고는 robot_registry의 메모리 최신값만)
 CREATE TABLE IF NOT EXISTS robot_status_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     robot_id    TEXT,
@@ -85,7 +33,9 @@ CREATE TABLE IF NOT EXISTS robot_status_log (
 
 CREATE TABLE IF NOT EXISTS events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    msg_id       TEXT,
     event_type   TEXT,
+    event_class  TEXT,
     robot_id     TEXT,
     confidence   REAL,
     x            REAL,
@@ -98,21 +48,36 @@ CREATE TABLE IF NOT EXISTS events (
     resolved_by  TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_missions_created   ON missions(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_transitions_mid    ON mission_transitions(mission_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_mid          ON tasks(mission_id);
-CREATE INDEX IF NOT EXISTS idx_status_log_robot   ON robot_status_log(robot_id, at DESC);
-CREATE INDEX IF NOT EXISTS idx_events_at          ON events(at DESC);
+CREATE TABLE IF NOT EXISTS ui_usage_log (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    source           TEXT,
+    language         TEXT,
+    customer_profile TEXT,
+    escort_used      INTEGER DEFAULT 0,
+    at               TEXT
+);
+
+CREATE TABLE IF NOT EXISTS monitor_counters (
+    name       TEXT PRIMARY KEY,
+    value      INTEGER DEFAULT 0,
+    updated_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_status_log_robot ON robot_status_log(robot_id, at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_at        ON events(at DESC);
+CREATE INDEX IF NOT EXISTS idx_usage_at         ON ui_usage_log(at DESC);
+"""
+
+INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type, event_class);
 """
 
 
 def utc_now_iso() -> str:
-    """ISO 8601(ms 포함, UTC). 공통 timestamp 형식 — NTP 동기화 전제."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 def init_db(db_path: str | None = None) -> sqlite3.Connection:
-    """연결 생성 + WAL 활성화 + 스키마 보장. 멱등(재호출 안전)."""
     global _conn
     path = db_path or config.DB_PATH
     conn = sqlite3.connect(path, check_same_thread=False)
@@ -122,23 +87,23 @@ def init_db(db_path: str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON;")
     conn.executescript(SCHEMA)
     _migrate(conn)
+    conn.executescript(INDEXES)
     conn.commit()
     _conn = conn
     return conn
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    """기존 DB에 누락 컬럼 보강(멱등). CREATE TABLE IF NOT EXISTS 는 컬럼 추가 안 함."""
-    cols = {r["name"] for r in conn.execute("PRAGMA table_info(missions)")}
-    if "language" not in cols:
-        conn.execute("ALTER TABLE missions ADD COLUMN language TEXT")
-    ecols = {r["name"] for r in conn.execute("PRAGMA table_info(events)")}
-    if "resolved" not in ecols:
-        conn.execute("ALTER TABLE events ADD COLUMN resolved INTEGER DEFAULT 0")
-    if "resolved_at" not in ecols:
-        conn.execute("ALTER TABLE events ADD COLUMN resolved_at TEXT")
-    if "resolved_by" not in ecols:
-        conn.execute("ALTER TABLE events ADD COLUMN resolved_by TEXT")
+    event_cols = {r["name"] for r in conn.execute("PRAGMA table_info(events)")}
+    for name, ddl in {
+        "msg_id": "ALTER TABLE events ADD COLUMN msg_id TEXT",
+        "event_class": "ALTER TABLE events ADD COLUMN event_class TEXT",
+        "resolved": "ALTER TABLE events ADD COLUMN resolved INTEGER DEFAULT 0",
+        "resolved_at": "ALTER TABLE events ADD COLUMN resolved_at TEXT",
+        "resolved_by": "ALTER TABLE events ADD COLUMN resolved_by TEXT",
+    }.items():
+        if name not in event_cols:
+            conn.execute(ddl)
 
 
 def get_conn() -> sqlite3.Connection:
@@ -148,7 +113,6 @@ def get_conn() -> sqlite3.Connection:
 
 
 def execute(sql: str, params: tuple = ()) -> None:
-    """쓰기(INSERT/UPDATE). write 직렬화를 위해 Lock 보호."""
     conn = get_conn()
     with _lock:
         conn.execute(sql, params)
@@ -156,7 +120,6 @@ def execute(sql: str, params: tuple = ()) -> None:
 
 
 def query_all(sql: str, params: tuple = ()) -> list[dict]:
-    """읽기 — Flask 조회 API용. Row → dict 변환."""
     conn = get_conn()
     with _lock:
         cur = conn.execute(sql, params)
@@ -178,4 +141,4 @@ def close() -> None:
 
 if __name__ == "__main__":
     init_db()
-    print(f"FMS SQLite initialized (WAL): {config.DB_PATH}")
+    print(f"Monitoring SQLite initialized (WAL): {config.DB_PATH}")

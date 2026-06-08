@@ -1,11 +1,12 @@
-"""MQTT 전송 계층 래퍼 — paho-mqtt 의존을 **이 파일에만 격리**한다.
+"""MQTT transport wrapper.
 
 설계 의도(구현가이드 §3):
   전송 프로토콜이 공식 미확정(MQTT 권장안)이므로 publish/subscribe 인터페이스를
   클래스로 감싸 다른 프로토콜(WebSocket 등)로 교체 가능성을 남긴다.
   다른 모듈은 paho를 직접 import하지 않는다 — 전부 이 Transport를 통한다.
 
-절대 규칙 1: FMS는 ROS를 모른다. 로봇과의 모든 통신은 MQTT JSON뿐.
+The monitoring server subscribes to status/event topics only. ``publish`` is
+kept for test/demo tools, not for robot control.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ import paho.mqtt.client as mqtt
 import config
 
 
-logger = logging.getLogger("fms.transport")
+logger = logging.getLogger("monitor.transport")
 
 # 수신 핸들러 시그니처: (topic: str, payload: dict) -> None
 MessageHandler = Callable[[str, dict], None]
@@ -66,7 +67,7 @@ class MqttTransport:
     def disconnect(self) -> None:
         self._client.disconnect()
 
-    # ── 발행 (FMS→로봇: IF-03 task, task cancel 등) ──────────────────────
+    # ── Publish helper for tests/demo messages. ─────────────────────────
     def publish(self, topic: str, payload: dict, qos: int = 1) -> None:
         data = json.dumps(payload, ensure_ascii=False)
         info = self._client.publish(topic, data, qos=qos)
@@ -75,7 +76,7 @@ class MqttTransport:
         else:
             logger.debug("published topic=%s payload=%s", topic, data)
 
-    # ── 구독 (로봇→FMS: IF-01/02/05, task_ack) ──────────────────────────
+    # ── Subscribe to JSON MQTT topics. ──────────────────────────────────
     def subscribe(self, topic_filter: str, handler: MessageHandler, qos: int = 0) -> None:
         """topic_filter(와일드카드 가능)에 핸들러 등록. 연결 전후 모두 호출 가능."""
         self._client.message_callback_add(topic_filter, self._wrap(handler))

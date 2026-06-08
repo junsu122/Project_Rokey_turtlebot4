@@ -23,7 +23,13 @@ import config  # noqa: E402
 import messages  # noqa: E402
 from transport import MqttTransport  # noqa: E402
 
-ALL_TYPES = ["FIRE", "SUSPICIOUS_PERSON", "EMERGENCY_PATIENT"]
+ALL_TYPES = ["FIRE", "SUSPICIOUS_PERSON", "EMERGENCY_PATIENT", "LOST_ITEM"]
+CLASS_BY_TYPE = {
+    "FIRE": ["fire", "smoke"],
+    "SUSPICIOUS_PERSON": ["gun", "knife"],
+    "EMERGENCY_PATIENT": ["patient"],
+    "LOST_ITEM": ["lost_item"],
+}
 
 # 층별: 담당 로봇 + 맵 보정 중심(cx,cy) + 흩뿌릴 반경(rx,ry). viz_3d ROS_CALIB 와 동일 기준.
 FLOORS = {
@@ -69,6 +75,7 @@ def main() -> int:
             confidence=conf,
             location={"x": x, "y": y, "floor": fl},
             snapshot_ref=f"demo_{i:02d}.jpg",
+            event_class=random.choice(CLASS_BY_TYPE.get(ev_type, [ev_type.lower()])),
         )
         t.publish(config.topic_event(f["robot_id"]), msg, config.QOS_EVENT)
         print(f"  [{i:02d}/{args.count}] {ev_type:<17} {f['robot_id']} "
