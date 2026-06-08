@@ -739,6 +739,60 @@ async function pollRobots(){
   }catch(e){ /* FMS 미연결 — 로봇 미표시 */ }
 }
 setInterval(pollRobots, 1000); pollRobots();
+
+// ===== 이상감지(IF-05) 3D 마커: /api/events 폴링 → 감지 좌표에 비콘 =====
+// 로봇 YOLO 가 IF-05(event_type, location{x,y,floor}) 를 쏘면 events 테이블에 적재되고
+// 여기서 폴링해 해당 층 markerGroup 에 비콘을 세운다. (최근 50건 윈도우 유지)
+const EVENT_STYLE = {
+  FIRE:              { c:0xff4530, ko:'화재',    emo:'🔥' },
+  SUSPICIOUS_PERSON: { c:0xe0a83b, ko:'거수자',  emo:'🚨' },
+  EMERGENCY_PATIENT: { c:0x35d0a0, ko:'긴급환자', emo:'🚑' },
+};
+const eventMarkers = {};   // 'ev'+id → {m, floor}
+function makeEventMarker(ev){
+  if(typeof ev.x!=='number' || typeof ev.y!=='number') return null;
+  if(ev.floor!==1 && ev.floor!==2) return null;
+  const st = EVENT_STYLE[ev.event_type] || { c:0xff4530, ko:ev.event_type||'이상', emo:'⚠' };
+  const col = new THREE.Color(st.c);
+  const [sx,sz] = rosToScene(ev.floor, ev.x, ev.y);
+  const g = new THREE.Group(); g.position.set(sx, 0, sz);
+  // 바닥 링
+  const ring = new THREE.Mesh(new THREE.RingGeometry(3.5,5,40),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.7,side:THREE.DoubleSide,depthTest:false}));
+  ring.rotation.x = -Math.PI/2; ring.position.y = 0.3; g.add(ring);
+  // 빛기둥
+  const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,20,12),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.55,depthWrite:false}));
+  beacon.position.y = 10; g.add(beacon);
+  // 상단 구
+  const top = new THREE.Mesh(new THREE.SphereGeometry(1.6,16,16), new THREE.MeshBasicMaterial({color:col}));
+  top.position.y = 20; g.add(top);
+  // 라벨(종류 + confidence)
+  const conf = (ev.confidence!=null) ? ' '+Math.round(ev.confidence*100)+'%' : '';
+  const lab = labelSprite(`${st.emo} ${st.ko}${conf}`, '#'+col.getHexString());
+  lab.position.y = 27; g.add(lab);
+  g.userData = { isEvent:true, ring, beacon, ph:(ev.id||0)%6 };
+  return g;
+}
+async function pollEvents(){
+  try{
+    const res = await fetch('/api/events?active=1&limit=50', {cache:'no-store', credentials:'same-origin'});
+    if(!res.ok) return;
+    const evs = await res.json();
+    const live = new Set();
+    evs.forEach(ev=>{
+      const id = 'ev'+ev.id; live.add(id);
+      if(eventMarkers[id]) return;                 // 이미 표시 중
+      const m = makeEventMarker(ev); if(!m) return;
+      markerGroup[ev.floor].add(m);
+      eventMarkers[id] = { m, floor:ev.floor };
+    });
+    Object.keys(eventMarkers).forEach(id=>{         // 최근 50건 밖으로 밀려나면 제거
+      if(!live.has(id)){ const e=eventMarkers[id]; markerGroup[e.floor].remove(e.m); delete eventMarkers[id]; }
+    });
+  }catch(e){ /* FMS 미연결 — 무시 */ }
+}
+setInterval(pollEvents, 2000); pollEvents();
 setInterval(()=>{
   if(Math.random()<.4){
     const msgs=['E/V 구역 혼잡 감지','개찰구 통행 지연','보행자 밀집 감지','배터리 충전 권장'];
@@ -767,6 +821,14 @@ function animate(){
     const r=robots[n];
     r.userData.ring.scale.setScalar(1+Math.sin(t*3)*0.12);
     r.userData.ring.material.opacity=0.5+Math.abs(Math.sin(t*3))*0.4;
+    // 이상감지 비콘 펄싱(같은 markerGroup 내, isEvent 만)
+    markerGroup[n].children.forEach(m=>{
+      if(!m.userData || !m.userData.isEvent) return;
+      const s=Math.abs(Math.sin(t*4+m.userData.ph));
+      m.userData.ring.scale.setScalar(1+s*0.35);
+      m.userData.ring.material.opacity=0.4+s*0.5;
+      m.userData.beacon.material.opacity=0.35+s*0.5;
+    });
   });
 
   // selection box

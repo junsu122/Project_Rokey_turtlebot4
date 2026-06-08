@@ -7,6 +7,8 @@
 - **3D 아이소메트릭** 층 뷰 (직교 카메라 + Bloom 글로우)
 - **TurtleBot4 위치** 표시 (헤딩·상태·배터리·역할)
 - **사람 위치** 표시 (이상감지 인원은 적색 펄스)
+- **이상감지(IF‑05) 비콘** — 화재🔥/거수자🚨/긴급환자🚑 감지 좌표에 펄싱 비콘(바닥 링+빛기둥+라벨).
+  관제 *조치 완료* 시 자동 제거.
 - **CCTV 위치** + 시야(FOV) 콘
 - **로봇 이동 경로** 시각화 (trail 폴리라인 + 흐르는 점)
 - **1층 / 2층 전환** (상단 탭)
@@ -23,6 +25,9 @@ npm run dev          # http://localhost:5173
 - 기본: **FMS API**(`/api/robots`, `/api/missions`)를 Vite 프록시로 폴링.
   - FMS 주소 변경: `VITE_FMS_URL=http://192.168.0.10:5000 npm run dev`
   - FMS가 안 떠 있으면 자동으로 **목업 시뮬레이터**(릴레이 에스코트 동선)로 폴백.
+- **이상감지 비콘**: `/api/events?active=1`(미조치만)를 2초 폴링 → 각 이벤트의 `location{x,y,floor}`를
+  `rosToScene(floor, x, y)`로 변환해 해당 층에 비콘 표시. *조치 완료*(`POST /api/events/<id>/resolve`)되면
+  active 목록에서 빠지며 비콘도 사라짐. (배포본 `index.html`이 Flask `/viz`로 서빙되는 기준)
 - **사람·CCTV**는 FMS에 없으므로 별도 정의:
   - CCTV: `src/config/cctv.ts` (현장 설치 위치로 교체)
   - 사람: 현재 목업(`src/data/mock.ts`). 실제 인원 트래커 연동 시 `useFleet.ts`에서 교체.

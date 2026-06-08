@@ -131,10 +131,11 @@ class MissionManager:
         )
         db.execute(
             "INSERT INTO missions(mission_id, request_id, state, start_robot, next_robot, "
-            "dest_poi, customer_profile, created_at, completed_at, handover_latency_ms) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "dest_poi, customer_profile, language, created_at, completed_at, handover_latency_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (mission_id, request_id, MISSION_REQUESTED, start_robot, next_robot,
-             dest_poi_id, mission["customer"].get("profile"), now, None, None),
+             dest_poi_id, mission["customer"].get("profile"),
+             mission["customer"].get("language"), now, None, None),
         )
         logger.info("mission %s created: start=%s next=%s dest=%s same_floor=%s",
                     mission_id, start_robot, next_robot, dest_poi_id, same_floor)

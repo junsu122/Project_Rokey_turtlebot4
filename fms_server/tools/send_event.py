@@ -24,7 +24,8 @@ from transport import MqttTransport  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser(description="IF-05 발행 (Vision 시뮬레이터)")
     parser.add_argument("--robot-id", required=True)
-    parser.add_argument("--type", required=True, choices=["FIRE", "SUSPICIOUS_PERSON"])
+    parser.add_argument("--type", required=True,
+                        choices=["FIRE", "SUSPICIOUS_PERSON", "EMERGENCY_PATIENT"])
     parser.add_argument("--confidence", type=float, default=0.9)
     parser.add_argument("--floor", type=int, default=1)
     parser.add_argument("--x", type=float, default=0.0)
