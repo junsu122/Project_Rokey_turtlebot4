@@ -7,7 +7,6 @@ import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
 
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = '/usr/lib/x86_64-linux-gnu/qt5/plugins'
 
 import cv2
 import rclpy
@@ -86,7 +85,6 @@ class DetectorNode(Node):
         self._K               = None
         self._depth           = None
         self._camera_frame    = None
-        self._latest_frame    = None
         self._first_frame     = True
         self._last_infer_time = 0.0
 
@@ -219,9 +217,6 @@ class DetectorNode(Node):
         img_msg.header = header
         self._pub_img.publish(img_msg)
 
-        with self._lock:
-            self._latest_frame = vis
-
         if not events:
             return
 
@@ -259,25 +254,12 @@ def main(args=None):
     node = DetectorNode()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-    spin_thread = threading.Thread(target=executor.spin, daemon=True)
-    spin_thread.start()
-    win_name    = f'detection [{node.ns}]'
-    win_opened  = False
     try:
-        while rclpy.ok():
-            with node._lock:
-                frame = node._latest_frame
-            if frame is not None:
-                cv2.imshow(win_name, frame)
-                if not win_opened:
-                    win_opened = True
-                    node.get_logger().info(f'[{node.ns}] cv2 창 열림')
-            cv2.waitKey(30)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
         executor.shutdown()
-        cv2.destroyAllWindows()
         node.destroy_node()
         rclpy.shutdown()
 

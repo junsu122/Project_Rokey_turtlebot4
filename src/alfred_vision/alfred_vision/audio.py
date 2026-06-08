@@ -27,3 +27,9 @@ def make_audio_msg(pattern):
         note.max_runtime = Duration(sec=sec, nanosec=nsec)
         msg.notes.append(note)
     return msg
+
+
+def make_silence_msg():
+    msg = AudioNoteVector()
+    msg.append = False
+    return msg

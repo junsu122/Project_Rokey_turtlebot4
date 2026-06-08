@@ -13,25 +13,21 @@ class EventHandlerNode(Node):
     def __init__(self):
         super().__init__('event_handler')
 
-        self.declare_parameter('namespace', '/robot2')
-        self.declare_parameter('emergency_door_x', 0.0)
-        self.declare_parameter('emergency_door_y', 0.0)
+        self.declare_parameter('namespace',       '/robot2')
+        self.declare_parameter('emergency_exit',  'entrance')  # entrance | entrance2 | gate | gate_b
 
-        ns     = self.get_parameter('namespace').value.strip()
-        door_x = self.get_parameter('emergency_door_x').value
-        door_y = self.get_parameter('emergency_door_y').value
+        ns       = self.get_parameter('namespace').value.strip()
+        exit_poi = self.get_parameter('emergency_exit').value
 
         self._handlers = {
-            'FIRE':              FireHandler(self, ns, door_x, door_y),
+            'FIRE':              FireHandler(self, ns, exit_poi),
             'INJURED_PERSON':    InjuredHandler(self, ns),
             'SUSPICIOUS_PERSON': SuspiciousHandler(self, ns),
             'LOST_ITEM':         LostItemHandler(self, ns),
         }
 
         self.create_subscription(String, f'{ns}/detection/info', self._cb_event, 10)
-        self.get_logger().info(
-            f'[{ns}] 이벤트 핸들러 시작 (비상문: x={door_x}, y={door_y})'
-        )
+        self.get_logger().info(f'[{ns}] 이벤트 핸들러 시작 (비상출구: {exit_poi})')
 
     def _cb_event(self, msg: String):
         try:

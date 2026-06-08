@@ -47,4 +47,18 @@ def generate_launch_description():
             parameters=[params],
             output='screen',
         ),
+        Node(
+            package='alfred_vision',
+            executable='video_sender',
+            name='video_sender_robot2',
+            parameters=[params],
+            output='screen',
+        ),
+        Node(
+            package='alfred_vision',
+            executable='video_sender',
+            name='video_sender_robot4',
+            parameters=[params],
+            output='screen',
+        ),
     ])

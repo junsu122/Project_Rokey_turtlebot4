@@ -30,6 +30,7 @@ setup(
         'console_scripts': [
             'detector      = alfred_vision.detector_node:main',
             'event_handler = alfred_vision.event_handler_node:main',
+            'video_sender  = alfred_vision.video_sender_node:main',
         ],
     },
 )
