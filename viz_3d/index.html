@@ -164,6 +164,8 @@
   body.embed .topbar, body.embed .panel, body.embed .footbar, body.embed .hint,
   body.embed .alarm, body.embed .editbar, body.embed .editpanel, body.embed .edithint{display:none !important}
   body.embed .floorsel{top:14px}
+  /* norobot 모드(대시보드 임베드 등): 좌측 로봇 상태 패널만 숨김 */
+  body.norobot .panel.left{display:none !important}
   /* 로그인 오버레이 */
   .login-ov{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
     background:radial-gradient(900px 600px at 60% 0%,rgba(0,120,255,.12),transparent 60%),var(--bg)}
@@ -192,7 +194,7 @@
 </style>
 
 <div id="app"></div>
-<script>if(new URLSearchParams(location.search).has('embed'))document.body.classList.add('embed');</script>
+<script>{const _q=new URLSearchParams(location.search);if(_q.has('embed'))document.body.classList.add('embed');if(_q.has('norobot'))document.body.classList.add('norobot');}</script>
 
 <!-- 로그인 오버레이 (클라이언트, LAN 데모) -->
 <div class="login-ov" id="loginOv">
