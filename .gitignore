@@ -18,6 +18,9 @@ fms_server/fms.db
 fms_server/fms.db-wal
 fms_server/fms.db-shm
 
+# ===== monitor 스택 런타임 DB (적재 산출물 — git 추적 제외) =====
+monitor_db_files/data/
+
 # ===== 환경/로그/에디터 =====
 .env
 *.log
