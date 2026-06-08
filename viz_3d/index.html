@@ -253,10 +253,6 @@ document.addEventListener('DOMContentLoaded',function(){
   <button class="fbtn" data-view="combined"><div><div class="n" style="font-size:15px">1+2</div><div class="l">통합</div></div></button>
 </div>
 
-<!-- Alarm -->
-<div class="alarm" id="alarm">
-  <span class="pulse"></span><span><b>긴급 알람</b> · <span id="alarmtxt">E/V 구역 혼잡 감지</span></span>
-</div>
 
 <!-- Left panel: robot status -->
 <div class="panel left">
@@ -833,13 +829,6 @@ async function pollEvents(){
   }catch(e){ /* FMS 미연결 — 무시 */ }
 }
 setInterval(pollEvents, 2000); pollEvents();
-setInterval(()=>{
-  if(Math.random()<.4){
-    const msgs=['E/V 구역 혼잡 감지','개찰구 통행 지연','보행자 밀집 감지','배터리 충전 권장'];
-    $('alarmtxt').textContent=msgs[Math.floor(Math.random()*msgs.length)];
-    const a=$('alarm'); a.classList.add('show'); setTimeout(()=>a.classList.remove('show'),3500);
-  }
-},9000);
 function tick(){const d=new Date();
   $('clock').textContent=d.toLocaleTimeString('ko-KR',{hour12:false});
   $('date').textContent=d.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
