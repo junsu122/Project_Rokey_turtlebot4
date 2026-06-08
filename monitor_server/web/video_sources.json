@@ -4,12 +4,12 @@
     {
       "robot_id": "robot2",
       "label": "robot2 · OAK-D RGB (1F)",
-      "signal_url": "http://ROBOT2_IP:8081/offer"
+      "signal_url": "http://192.168.107.102:8081/offer"
     },
     {
       "robot_id": "robot4",
       "label": "robot4 · OAK-D RGB (2F)",
-      "signal_url": "http://ROBOT4_IP:8081/offer"
+      "signal_url": "http://192.168.107.104:8081/offer"
     }
   ]
 }

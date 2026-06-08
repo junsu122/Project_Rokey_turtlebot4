@@ -57,6 +57,21 @@
   .ebtn.call{border-color:rgba(248,113,113,.65);color:#ffd9dd;background:rgba(248,113,113,.12)}
   .ebtn.sec{border-color:rgba(96,165,250,.65);color:#bfe3ff;background:rgba(96,165,250,.12)}
   .ebtn.done{background:var(--blue);border-color:var(--blue);color:#07111f;font-weight:700}
+  /* 영상 (WebRTC) — 로봇↔브라우저 P2P 수신 */
+  .video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:16px}
+  .vcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .vcard .vtop{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .vcard .vid-name{font-weight:700}
+  .vstage{position:relative;width:100%;aspect-ratio:16/9;background:#0a0e16;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .vstage video{width:100%;height:100%;object-fit:contain;display:block;background:#0a0e16}
+  .vstate{margin-left:auto;font-size:12px;font-weight:700;padding:2px 9px;border-radius:10px;background:var(--bg);color:var(--muted)}
+  .vstate.connected{color:var(--green)} .vstate.connecting{color:var(--amber)} .vstate.failed{color:var(--red)}
+  .vbtns{display:flex;gap:8px;margin-top:10px}
+  .vbtn{background:var(--blue);color:#07111f;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700}
+  .vbtn.off{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:400}
+  .vbtn:disabled{opacity:.5;cursor:not-allowed}
+  .vbtn:hover{filter:brightness(1.1)}
+  .vmeta{font-size:11px;color:var(--muted);margin-top:8px}
 </style>
 </head>
 <body>
@@ -69,6 +84,7 @@
     <button class="tab" data-tab="robots">로봇 상태</button>
     <button class="tab" data-tab="events">이벤트</button>
     <button class="tab" data-tab="map">3D 관제</button>
+    <button class="tab" data-tab="video">영상</button>
     <button class="tab" data-tab="system">시스템</button>
     <button class="tab" data-tab="search">검색</button>
   </nav>
@@ -163,6 +179,17 @@
       <div id="searchResult"></div>
     </section>
   </div>
+
+  <div id="tab-video" class="tabpanel">
+    <section>
+      <h2>로봇 카메라 영상 (WebRTC)</h2>
+      <div class="muted" style="margin-bottom:12px;font-size:12px">
+        미디어는 로봇↔브라우저 P2P(서버 우회) · 시그널링 URL은
+        <span class="mono">web/video_sources.json</span> 에서 각 로봇 IP로 설정
+      </div>
+      <div id="video-grid" class="video-grid"></div>
+    </section>
+  </div>
 </main>
 <script>
 const $ = id => document.getElementById(id);
@@ -176,6 +203,7 @@ document.querySelectorAll('.tab').forEach(btn=>{
     document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('on'));
     btn.classList.add('on');
     $(`tab-${btn.dataset.tab}`).classList.add('on');
+    if(btn.dataset.tab==='video') buildVideoGrid();
   });
 });
 
@@ -348,6 +376,72 @@ async function load(){
     $('conn').textContent = '연결 오류';
   }
 }
+// ── 영상 (WebRTC) — 로봇↔브라우저 P2P 수신, 서버 우회 ─────────────────
+const VPC = {};            // robot_id → RTCPeerConnection (활성 연결)
+let _videoBuilt = false;
+function isUnset(url){ return !url || /ROBOT\d?_IP/.test(url); }
+async function buildVideoGrid(){
+  if(_videoBuilt) return;  // 그리드는 1회만 — 탭 재진입 시 활성 연결 보존
+  let d; try{ d = await j('/api/video_sources'); }
+  catch(e){ $('video-grid').innerHTML='<div class="empty">소스 불러오기 실패</div>'; return; }
+  const srcs = d.sources || [];
+  if(!srcs.length){ $('video-grid').innerHTML='<div class="empty">video_sources.json 에 소스 없음</div>'; _videoBuilt=true; return; }
+  $('video-grid').innerHTML = srcs.map(s=>{
+    const need=isUnset(s.signal_url);
+    return `<div class="vcard">
+      <div class="vtop"><span class="vid-name">${esc(s.label||s.robot_id)}</span>
+        <span class="vstate" id="vst-${esc(s.robot_id)}">대기</span></div>
+      <div class="vstage"><video id="vid-${esc(s.robot_id)}" autoplay playsinline muted></video></div>
+      <div class="vbtns"><button class="vbtn" id="vbtn-${esc(s.robot_id)}" ${need?'disabled':''}>연결</button></div>
+      <div class="vmeta">${need?'⚠ video_sources.json 에서 로봇 IP 설정 필요 · ':''}시그널링 <span class="mono">${esc(s.signal_url||'—')}</span></div>
+    </div>`;
+  }).join('');
+  srcs.forEach(s=>{ const b=$('vbtn-'+s.robot_id); if(b && !isUnset(s.signal_url)) b.addEventListener('click', ()=>toggleVideo(s)); });
+  _videoBuilt=true;
+}
+function setVState(rid,txt,cls){ const e=$('vst-'+rid); if(e){ e.textContent=txt; e.className='vstate '+(cls||''); } }
+function iceGatheringComplete(pc){
+  return new Promise(res=>{
+    if(pc.iceGatheringState==='complete') return res();
+    const f=()=>{ if(pc.iceGatheringState==='complete'){ pc.removeEventListener('icegatheringstatechange',f); res(); } };
+    pc.addEventListener('icegatheringstatechange',f);
+    setTimeout(res,2000);  // trickle 미사용 — 게더링 지연 안전장치
+  });
+}
+async function toggleVideo(s){
+  const rid=s.robot_id, btn=$('vbtn-'+rid);
+  if(VPC[rid]){  // 이미 연결됨 → 끊기
+    VPC[rid].close(); delete VPC[rid];
+    const v=$('vid-'+rid); if(v) v.srcObject=null;
+    setVState(rid,'대기',''); btn.textContent='연결'; btn.classList.remove('off'); return;
+  }
+  btn.textContent='끊기'; btn.classList.add('off'); setVState(rid,'연결 중…','connecting');
+  try{
+    const pc=new RTCPeerConnection({iceServers:[]});  // 같은 LAN → STUN/TURN 불필요
+    VPC[rid]=pc;
+    pc.addTransceiver('video',{direction:'recvonly'});
+    pc.ontrack=ev=>{ const v=$('vid-'+rid); if(v) v.srcObject=ev.streams[0]; };
+    pc.onconnectionstatechange=()=>{
+      const st=pc.connectionState;
+      if(st==='connected') setVState(rid,'연결됨','connected');
+      else if(st==='connecting') setVState(rid,'연결 중…','connecting');
+      else if(st==='failed'||st==='disconnected') setVState(rid,'연결 끊김','failed');
+      else if(st==='closed') setVState(rid,'대기','');
+    };
+    const offer=await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await iceGatheringComplete(pc);
+    const r=await fetch(s.signal_url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sdp:pc.localDescription.sdp,type:pc.localDescription.type})});
+    if(!r.ok) throw new Error('signal '+r.status);
+    await pc.setRemoteDescription(await r.json());
+  }catch(e){
+    setVState(rid,'실패','failed');
+    if(VPC[rid]){ VPC[rid].close(); delete VPC[rid]; }
+    btn.textContent='연결'; btn.classList.remove('off');
+  }
+}
+
 load();
 setInterval(load, 2000);
 </script>
