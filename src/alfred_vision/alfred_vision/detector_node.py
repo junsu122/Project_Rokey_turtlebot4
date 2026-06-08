@@ -26,7 +26,7 @@ from message_filters import Subscriber, ApproximateTimeSynchronizer
 
 DEFAULT_MODEL = os.path.join(
     os.path.dirname(__file__), '..', '..', '..', '..', 'share',
-    'alfred_vision', 'resource', 'fire_patient_v1.pt'
+    'alfred_vision', 'resource', 'best.pt'
 )
 CONF_THRESH  = 0.4
 SNAPSHOT_DIR = Path('/tmp/detection_snapshots')
@@ -82,12 +82,13 @@ class DetectorNode(Node):
 
         qos_be = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
-        self._lock          = threading.Lock()
-        self._K             = None
-        self._depth         = None
-        self._camera_frame  = None
-        self._latest_frame  = None
-        self._first_frame   = True
+        self._lock            = threading.Lock()
+        self._K               = None
+        self._depth           = None
+        self._camera_frame    = None
+        self._latest_frame    = None
+        self._first_frame     = True
+        self._last_infer_time = 0.0
 
         self.create_subscription(
             CameraInfo,
@@ -118,6 +119,12 @@ class DetectorNode(Node):
                     f'[{self.ns}] K 행렬 수신: fx={self._K[0,0]:.1f}, fy={self._K[1,1]:.1f}')
 
     def _cb_synced(self, rgb_msg: CompressedImage, depth_msg: CompressedImage):
+        import time
+        now = time.monotonic()
+        if now - self._last_infer_time < 3.0:
+            return
+        self._last_infer_time = now
+
         try:
             buf   = np.frombuffer(rgb_msg.data, dtype=np.uint8)
             frame = cv2.imdecode(buf, cv2.IMREAD_COLOR)
@@ -229,6 +236,7 @@ class DetectorNode(Node):
                 'msg_id':       str(uuid.uuid4()),
                 'version':      '2.0',
                 'event_type':   ev['event_type'],
+                'class':        ev['class'],
                 'robot_id':     robot_id,
                 'confidence':   ev['confidence'],
                 'location':     {

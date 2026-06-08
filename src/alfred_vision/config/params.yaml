@@ -9,8 +9,8 @@ detector_robot4:
 event_handler_robot2:
   ros__parameters:
     namespace: /robot2
-    emergency_door_x: 0.0
-    emergency_door_y: 0.0
+    emergency_door_x: -8.05
+    emergency_door_y: 2.56
 
 event_handler_robot4:
   ros__parameters:
