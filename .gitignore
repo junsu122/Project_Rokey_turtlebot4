@@ -24,6 +24,15 @@ fms_server/fms.db-shm
 .idea/
 *.swp
 
+# ===== 모델 파일 (대형 바이너리 — LFS 또는 제외) =====
+*.pt
+*.pth
+*.onnx
+
+# ===== FMS 생성 산출물 =====
+fms_server/web/maps/*.png
+fms_server/web/maps/maps.json
+
 # VSCode 로컬 생성물 (공유 설정만 남기고 캐시/머신종속 파일 제외)
 .vscode/browse.vc.db
 .vscode/*.vc.db

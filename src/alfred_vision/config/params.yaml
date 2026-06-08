@@ -1,0 +1,19 @@
+detector_robot2:
+  ros__parameters:
+    namespace: /robot2
+
+detector_robot4:
+  ros__parameters:
+    namespace: /robot4
+
+event_handler_robot2:
+  ros__parameters:
+    namespace: /robot2
+    emergency_door_x: 0.0
+    emergency_door_y: 0.0
+
+event_handler_robot4:
+  ros__parameters:
+    namespace: /robot4
+    emergency_door_x: 0.0
+    emergency_door_y: 0.0
