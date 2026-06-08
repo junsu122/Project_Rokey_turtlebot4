@@ -1,0 +1,204 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: var(--weight-black);
+  letter-spacing: -0.02em;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  min-height: 0;
+  text-align: center;
+}
+
+.transcriptBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  max-width: 80vw;
+}
+
+.transcriptLabel {
+  font-size: var(--font-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.transcript {
+  font-size: var(--font-md);
+  font-weight: var(--weight-bold);
+  color: var(--color-text);
+}
+
+.hint {
+  font-size: var(--font-md);
+  color: var(--color-text-soft);
+}
+
+.status {
+  font-size: var(--font-md);
+  font-weight: var(--weight-bold);
+  color: var(--color-secondary-strong);
+}
+
+/* ---- Mic button ---- */
+.mic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: clamp(200px, 30vh, 340px);
+  height: clamp(200px, 30vh, 340px);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-invert);
+  background: linear-gradient(
+    160deg,
+    var(--color-secondary),
+    var(--color-secondary-strong)
+  );
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.mic:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.micGlyph {
+  font-size: var(--font-2xl);
+  line-height: 1;
+}
+
+.micLabel {
+  font-size: var(--font-sm);
+  font-weight: var(--weight-bold);
+}
+
+.micActive {
+  animation: micPulse 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes micPulse {
+  0%,
+  100% {
+    box-shadow:
+      var(--shadow-lg),
+      0 0 0 0 rgba(255, 122, 60, 0.5);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-lg),
+      0 0 0 3rem rgba(255, 122, 60, 0);
+  }
+}
+
+/* ---- Thinking spinner ---- */
+.spinner {
+  width: clamp(120px, 18vh, 200px);
+  height: clamp(120px, 18vh, 200px);
+  border-radius: var(--radius-pill);
+  border: 1.4rem solid var(--color-surface-sunken);
+  border-top-color: var(--color-secondary);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Confirm / not-found panel ---- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.candidate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-secondary-soft);
+  border-radius: var(--radius-lg);
+}
+
+.candidateIcon {
+  font-size: var(--font-xl);
+  line-height: 1;
+}
+
+.candidateName {
+  font-size: var(--font-xl);
+  font-weight: var(--weight-black);
+  color: var(--color-text);
+}
+
+.question {
+  font-size: var(--font-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text);
+}
+
+.notfound {
+  font-size: var(--font-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-soft);
+  max-width: 22ch;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---- Chat answer (general question, no server) ---- */
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 60vw;
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+}
+
+.answerLabel {
+  font-size: var(--font-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-muted);
+}
+
+.answerText {
+  font-size: var(--font-md);
+  font-weight: var(--weight-medium);
+  line-height: 1.45;
+  color: var(--color-text);
+}

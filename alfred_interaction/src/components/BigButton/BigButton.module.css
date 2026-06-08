@@ -1,0 +1,120 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-invert);
+  box-shadow: var(--shadow-md);
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    filter var(--dur-fast) var(--ease-out);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.icon {
+  line-height: 1;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.label {
+  line-height: 1.1;
+  white-space: nowrap; /* keep short button labels (뒤로 / Back / 戻る) on one line */
+}
+
+.sublabel {
+  font-size: 0.46em;
+  font-weight: var(--weight-medium);
+  opacity: 0.92;
+}
+
+/* ---- Sizes ---- */
+.hero {
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: var(--btn-hero-min-h);
+  padding: var(--space-5) var(--space-4);
+  font-size: var(--font-xl);
+  border-radius: var(--radius-xl);
+}
+
+.hero .icon {
+  font-size: 1.5em;
+}
+
+.normal {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-md);
+  min-height: var(--touch-min);
+}
+
+.normal .text {
+  flex-direction: row;
+}
+
+.compact {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-sm);
+  min-height: 64px;
+  border-radius: var(--radius-md);
+  gap: var(--space-2);
+}
+
+.compact .text {
+  flex-direction: row;
+}
+
+.compact .icon {
+  font-size: 1.3em;
+}
+
+/* ---- Tones ---- */
+.primary {
+  background: linear-gradient(
+    160deg,
+    var(--color-primary),
+    var(--color-primary-strong)
+  );
+}
+
+.secondary {
+  background: linear-gradient(
+    160deg,
+    var(--color-secondary),
+    var(--color-secondary-strong)
+  );
+}
+
+.danger {
+  background: linear-gradient(
+    160deg,
+    var(--color-danger),
+    var(--color-danger-strong)
+  );
+}
+
+.neutral {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--color-line);
+}

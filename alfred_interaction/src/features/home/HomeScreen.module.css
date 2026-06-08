@@ -1,0 +1,59 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.floorBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-black);
+  color: var(--color-text-invert);
+  background: var(--color-accent);
+  border-radius: var(--radius-pill);
+}
+
+.header {
+  padding: var(--space-3) var(--space-5) 0;
+  text-align: center;
+}
+
+.greeting {
+  font-size: var(--font-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.question {
+  font-size: var(--font-lg);
+  font-weight: var(--weight-black);
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.buttons {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  align-items: stretch;
+  padding: var(--space-5);
+  min-height: 0;
+}
+
+.hero {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-aspect-ratio: 3 / 4) {
+  .buttons {
+    grid-template-columns: 1fr;
+  }
+}
