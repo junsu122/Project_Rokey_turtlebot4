@@ -554,21 +554,33 @@ function updateTrail(n){
   if(tr.length>1) pl.computeLineDistances();
 }
 
-// ===== 실 로봇 좌표(ROS/SLAM 월드 m) → 씬 좌표 변환 =====
-// 각 층 SLAM 맵 모서리(1층맵/2층맵 좌표.png 기준). 로봇 pose를 이 사각형 기준으로 정규화해
-// 씬 플레이트 내부(±SCENE_HALF)로 매핑한다. 거울/회전이 어긋나면 flipX·flipZ·rotOffset로 보정.
-// 좌표계가 실측 미터×M2U 이므로 변환은 (실좌표-층중심)×스케일. 거울/회전 어긋나면 flip·rotOffset.
-const M2U = 18;
-const ROS_CALIB = {
-  1: { cx:-4.545, cy:2.59, flipX:false, flipZ:false, rotOffset:0 },
-  2: { cx:-1.71,  cy:2.34, flipX:false, flipZ:false, rotOffset:0 },
+// ===== 실 로봇 좌표(ROS/SLAM map frame, meters) → 씬 좌표 변환 =====
+// /api/maps 는 docs/maps/map_*.yaml(image/resolution/origin)에서 만든 메타데이터다.
+// SLAM map 좌표를 그 맵의 실제 폭/높이 안에서 정규화한 뒤 3D 플레이트 크기로 변환한다.
+const MAP_META = {
+  1: { origin:[-8.91,-0.179], resolution:0.05, width:175, height:110, rotOffset:0 },
+  2: { origin:[-3.73,0.551], resolution:0.05, width:81, height:75, rotOffset:0 },
 };
+async function loadMapMeta(){
+  try{
+    const res=await fetch('/api/maps',{cache:'no-store',credentials:'same-origin'});
+    if(!res.ok) return;
+    const data=await res.json();
+    (data.floors||[]).forEach(m=>{
+      if(!m.floor || !m.origin || !m.resolution || !m.width || !m.height) return;
+      MAP_META[m.floor]={...MAP_META[m.floor], origin:m.origin, resolution:m.resolution, width:m.width, height:m.height};
+    });
+  }catch(e){}
+}
+loadMapMeta();
 function rosToScene(floor, x, y){
-  const c = ROS_CALIB[floor]; if(!c) return [0,0];
-  let sx = (x - c.cx) * M2U;
-  let sz = -(y - c.cy) * M2U;   // ROS +y(위) → 씬 -z(뒤)
-  if(c.flipX) sx = -sx;
-  if(c.flipZ) sz = -sz;
+  const m = MAP_META[floor]; if(!m) return [0,0];
+  const mapW = m.width * m.resolution;
+  const mapH = m.height * m.resolution;
+  const nx = (x - m.origin[0]) / mapW;
+  const ny = (y - m.origin[1]) / mapH;
+  const sx = (nx - 0.5) * PLATE[floor].W;
+  const sz = -(ny - 0.5) * PLATE[floor].D;   // ROS +y(위) → 씬 -z(뒤)
   return [sx, sz];
 }
 // 외부에서 실 로봇 위치 주입 → 해당 층 로봇은 시뮬 정지하고 실좌표로 이동
@@ -576,7 +588,7 @@ function setRobotPose(floor, rosX, rosY, rosTheta){
   const r = robots[floor]; if(!r) return;
   const [sx,sz] = rosToScene(floor, rosX, rosY);
   r.position.set(sx, 0, sz); r.visible = true;
-  if(typeof rosTheta === 'number') r.rotation.y = -rosTheta + (ROS_CALIB[floor].rotOffset||0);
+  if(typeof rosTheta === 'number') r.rotation.y = -rosTheta + (MAP_META[floor].rotOffset||0);
   r.userData.real = true;
   const tr=trails[floor], last=tr[tr.length-1];      // 이동 경로 누적
   if(!last || Math.hypot(last[0]-sx,last[1]-sz)>1.5){ tr.push([sx,sz]); if(tr.length>50) tr.shift(); updateTrail(floor); }

@@ -1,13 +1,13 @@
-// ROS map 좌표(FMS pose: x, y meters) → 씬 좌표([x, z]) 변환.
-// 실제 SLAM 맵 원점·스케일에 맞춰 보정해야 한다(아래 값은 데모 기본값).
-// 보정 방법: 로봇을 알려진 지점(E/V 등)에 세우고 pose를 읽어 offset/scale을 맞춘다.
+// ROS SLAM map 좌표(FMS pose: x, y meters) → 씬 좌표([x, z]) 변환.
+// docs/maps/map_*.yaml 의 origin/resolution 과 이미지 크기를 기준으로 정규화한다.
 import type { FloorId, Vec2 } from "./types";
 
-interface FloorTransform {
-  scale: number; // m → m (보통 1)
-  offset: Vec2; // 씬 좌표 평행이동
-  flipY: boolean; // ROS y축 ↔ 씬 z축 부호
-  rotDeg: number; // 회전(도)
+interface MapMeta {
+  origin: Vec2;
+  resolution: number;
+  width: number;
+  height: number;
+  rotDeg: number;
 }
 
 // robot_id → 층 매핑 (config.ROBOTS: robot2=1F, robot4=2F)
@@ -16,19 +16,25 @@ export const ROBOT_FLOOR: Record<string, FloorId> = {
   robot4: "2F",
 };
 
-const TF: Record<FloorId, FloorTransform> = {
-  "1F": { scale: 1, offset: [12, 8], flipY: true, rotDeg: 0 },
-  "2F": { scale: 1, offset: [12, 8], flipY: true, rotDeg: 0 },
+const MAP_META: Record<FloorId, MapMeta> = {
+  "1F": { origin: [-8.91, -0.179], resolution: 0.05, width: 175, height: 110, rotDeg: 0 },
+  "2F": { origin: [-3.73, 0.551], resolution: 0.05, width: 81, height: 75, rotDeg: 0 },
+};
+
+const SCENE_BOUNDS: Record<FloorId, Vec2> = {
+  "1F": [24, 16],
+  "2F": [24, 16],
 };
 
 export function rosToScene(floor: FloorId, x: number, y: number): Vec2 {
-  const t = TF[floor];
-  const r = (t.rotDeg * Math.PI) / 180;
-  const yy = t.flipY ? -y : y;
-  const rx = x * Math.cos(r) - yy * Math.sin(r);
-  const rz = x * Math.sin(r) + yy * Math.cos(r);
-  return [rx * t.scale + t.offset[0], rz * t.scale + t.offset[1]];
+  const m = MAP_META[floor];
+  const [sceneW, sceneH] = SCENE_BOUNDS[floor];
+  const mapW = m.width * m.resolution;
+  const mapH = m.height * m.resolution;
+  const nx = (x - m.origin[0]) / mapW;
+  const ny = (y - m.origin[1]) / mapH;
+  return [nx * sceneW, (1 - ny) * sceneH];
 }
 
 export const rosHeading = (floor: FloorId, theta: number) =>
-  (TF[floor].flipY ? -theta : theta) + (TF[floor].rotDeg * Math.PI) / 180;
+  -theta + (MAP_META[floor].rotDeg * Math.PI) / 180;
