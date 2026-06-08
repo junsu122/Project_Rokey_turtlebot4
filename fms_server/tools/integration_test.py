@@ -119,7 +119,7 @@ def main() -> int:
         inter.publish("mock/robot2/cmd", {"cmd": "call"}, qos=1)
         time.sleep(0.4)
         inter.publish(config.topic_request("robot2"),
-                      messages.if01(reqid, "robot2", {"poi_id": "GATE_30", "floor": dest_floor},
+                      messages.if01(reqid, "robot2", {"poi_id": "trans", "floor": dest_floor},
                                     {"floor": 1, "pose": {"x": 0, "y": 0}}, {"profile": "GENERAL"}),
                       config.QOS_REQUEST)
         wait(lambda: latest().get("state") in ("ESCORTING_TO_HANDOVER", "HANDOVER_WAITING"), to=5)

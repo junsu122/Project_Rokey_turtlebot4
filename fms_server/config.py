@@ -37,12 +37,12 @@ ROBOTS: dict[str, dict] = {
     "robot2": {
         "namespace": "/robot2",
         "ros_domain_id": 2,      # 현재 공유. 분리 후 개별 값으로 교체(브리지 측).
-        "base_poi": "station",   # 복귀(순찰 홈) 지점 — floor 1
+        "base_poi": "station",   # 복귀(충전/대기) 지점 — poi_table.yaml type=BASE(robot2)
     },
     "robot4": {
         "namespace": "/robot4",
         "ros_domain_id": 2,      # 현재 공유.
-        "base_poi": "station2",  # 복귀(순찰 홈) 지점 — floor 2
+        "base_poi": "station2",  # poi_table.yaml type=BASE(robot4)
     },
 }
 ROBOT_IDS = list(ROBOTS)

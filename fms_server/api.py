@@ -20,6 +20,7 @@ import db
 
 logger = logging.getLogger("fms.api")
 WEB_DIR = Path(__file__).resolve().parent / "web"
+VIZ_DIR = Path(__file__).resolve().parent.parent / "viz_3d"  # 3D 관제 뷰(단일 HTML)
 
 
 def create_app(registry) -> Flask:
@@ -65,6 +66,11 @@ def create_app(registry) -> Flask:
     @app.get("/")
     def dashboard():
         return send_from_directory(WEB_DIR, "dashboard.html")
+
+    # 3D 관제 뷰(viz_3d). require_login 적용(공개 경로 아님) → :5000 세션 공유.
+    @app.get("/viz")
+    def viz():
+        return send_from_directory(VIZ_DIR, "index.html")
 
     # 맵 메타(층·로봇·해상도·원점·픽셀크기) + 맵 이미지(png) 서빙
     @app.get("/api/maps")

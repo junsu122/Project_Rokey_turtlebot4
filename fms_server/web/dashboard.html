@@ -21,10 +21,16 @@
   .dot{width:9px;height:9px;border-radius:50%;background:var(--gray)}
   .dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}
   .dot.bad{background:var(--red);box-shadow:0 0 8px var(--red)}
-  main{padding:18px;max-width:1200px;margin:0 auto}
+  main{padding:14px 18px;max-width:1980px;margin:0 auto}
   .grid{display:grid;gap:16px}
-  .robots{grid-template-columns:1fr 1fr}
-  .bottom{grid-template-columns:1fr 1fr}
+  /* 3컬럼(양옆) 레이아웃: 좌=로봇/핸드오버, 중=3D맵, 우=미션/이력/검색 */
+  .cols{display:grid;grid-template-columns:340px minmax(0,1fr) 400px;gap:16px;align-items:start}
+  .col{min-width:0}
+  .col > section{margin-bottom:14px}
+  .map-section{position:sticky;top:14px}
+  .robots{grid-template-columns:1fr}
+  .bottom{grid-template-columns:1fr}
+  @media(max-width:1280px){.cols{grid-template-columns:1fr}.map-section{position:static}}
   section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
   section h2{font-size:13px;margin:0 0 12px;color:var(--dim);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
   /* 로봇 카드 */
@@ -69,6 +75,9 @@
   @media(max-width:760px){.robots,.bottom,.maps{grid-template-columns:1fr}}
   /* 맵 */
   .maps{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  /* 3D 관제 뷰 임베드(viz_3d iframe) */
+  .map3d{width:100%;height:calc(100vh - 150px);min-height:480px;border:1px solid var(--line);border-radius:10px;background:#0a1422;display:block}
+  .map3d-hint{color:var(--dim);font-size:11px;margin-top:6px}
   .map-title{font-size:13px;margin-bottom:8px;color:var(--dim)}
   .map-title b{color:var(--txt)}
   .map-stage{position:relative;width:100%;background:#0a0e16;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -80,57 +89,127 @@
              white-space:nowrap;color:var(--txt);background:rgba(15,20,32,.85);padding:1px 5px;border-radius:4px}
   .rdot .head{position:absolute;left:50%;top:50%;width:11px;height:2px;background:#fff;transform-origin:left center}
   .map-off{position:absolute;right:6px;bottom:5px;font-size:10px;color:var(--amber);background:rgba(15,20,32,.7);padding:1px 5px;border-radius:4px}
+  /* 비상 배너 (ui-admin 참고) */
+  .emg-banner{background:rgba(224,90,90,.10);border:1px solid rgba(224,90,90,.5);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:none}
+  .emg-banner.show{display:block}
+  .emg-banner h2{color:#ff8a8a;margin:0 0 10px;font-size:14px;letter-spacing:0;text-transform:none}
+  .emg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+  .emg-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel2);border:1px solid rgba(224,90,90,.45);border-radius:8px;padding:9px 12px}
+  /* 핸드오버 카드 (ui-admin HandoverCard 참고) */
+  .ho-card{background:rgba(224,168,59,.07);border:1px solid rgba(224,168,59,.4);border-radius:12px;padding:14px 16px}
+  .ho-card.urgent{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset}
+  .ho-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .ho-status{font-size:12px;padding:2px 9px;border-radius:10px;background:var(--panel2)}
+  .ho-status.pending{color:var(--amber)} .ho-status.moving{color:var(--green)}
+  .ho-flow{display:flex;flex-direction:column;gap:5px;margin:6px 0}
+  .ho-row{display:flex;align-items:center;gap:9px;font-size:14px}
+  .ho-role{font-size:10.5px;color:var(--dim);background:var(--panel2);border-radius:4px;padding:2px 8px;min-width:58px;text-align:center}
+  .ho-arrow{color:var(--dim);font-size:15px}
+  .ho-count{margin-top:8px;font-weight:700;font-size:15px;color:var(--amber)}
+  .ho-count.ready{color:var(--green)}
+  /* 로봇 카드 보강 (online pill · alarm · role chip) */
+  .pill{font-size:11px;padding:2px 8px;border-radius:10px;margin-left:auto}
+  .pill.on{background:rgba(63,178,127,.18);color:#7ee0b0}
+  .pill.off{background:rgba(224,90,90,.18);color:#ff9a9a}
+  .robot.alarm{border-color:var(--red);box-shadow:0 0 0 1px var(--red) inset}
+  .role-chip{font-size:10.5px;border-radius:10px;padding:2px 8px;font-weight:600}
+  .role-chip.start{background:rgba(91,141,239,.2);color:#9fc0ff}
+  .role-chip.next{background:rgba(63,178,127,.22);color:#7ee0b0}
+  /* 탭 */
+  .tabs{display:flex;gap:6px;margin-left:24px}
+  .tab{background:transparent;border:1px solid var(--line);color:var(--dim);padding:7px 14px;
+       border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit}
+  .tab:hover{color:var(--txt);border-color:var(--accent)}
+  .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .records{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  @media(max-width:1000px){.records{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
   <h1>FMS 관제 대시보드</h1>
   <span class="sub">다중 로봇 릴레이 에스코트</span>
+  <nav class="tabs">
+    <button class="tab on" data-tab="live">실시간 관제</button>
+    <button class="tab" data-tab="records">미션 이력 · 검색</button>
+  </nav>
   <div class="conn"><span id="dot" class="dot"></span><span id="connTxt">연결 중…</span>
     <span id="updated" class="sub"></span></div>
   <a class="logout" href="/logout">로그아웃</a>
 </header>
 <main>
-  <section>
-    <h2>로봇 (실시간 · IF-02)</h2>
-    <div id="robots" class="grid robots"></div>
-  </section>
-  <section>
-    <h2>맵 · 실시간 위치</h2>
-    <div id="maps" class="maps"></div>
-  </section>
-  <section>
-    <h2>활성 / 최근 미션 (Mission State — FMS 단독 소유)</h2>
-    <div id="mission"></div>
-  </section>
-  <div class="grid bottom">
-    <section>
-      <h2>미션 이력</h2>
-      <div id="history"></div>
-    </section>
-    <section>
-      <h2>이상감지 (IF-05)</h2>
-      <div id="events"></div>
-    </section>
-  </div>
-  <section>
-    <h2>검색 (DB 기록)</h2>
-    <div class="searchbar">
-      <input id="q" placeholder="미션ID · 상태 · 목적지 · 로봇 · 이벤트 · task 키워드…">
-      <select id="kind">
-        <option value="all">전체</option>
-        <option value="missions">미션</option>
-        <option value="events">이벤트</option>
-        <option value="tasks">task</option>
-      </select>
+  <div id="emg" class="emg-banner"></div>
+
+  <!-- 탭1: 실시간 관제 -->
+  <div id="tab-live" class="tabpanel">
+    <div class="cols">
+      <!-- 좌: 로봇 · 핸드오버 -->
+      <div class="col col-left">
+        <section>
+          <h2>로봇 (실시간 · IF-02)</h2>
+          <div id="robots" class="grid robots"></div>
+        </section>
+        <section id="ho-sec" style="display:none">
+          <h2>핸드오버 (3초 인계 — 핵심 지표)</h2>
+          <div id="handover"></div>
+        </section>
+      </div>
+      <!-- 중앙: 3D 맵 -->
+      <div class="col col-center">
+        <section class="map-section">
+          <h2>맵 · 실시간 위치 (3D 아이소메트릭)</h2>
+          <iframe id="map3d" class="map3d" title="3D 관제 뷰" loading="lazy"></iframe>
+          <div class="map3d-hint">viz_3d 임베드 · 1F/2F/통합 전환 · 드래그 회전 · 휠 줌</div>
+        </section>
+      </div>
+      <!-- 우: 활성 미션 · 이상감지 -->
+      <div class="col col-right">
+        <section>
+          <h2>활성 / 최근 미션 (Mission State — FMS 단독 소유)</h2>
+          <div id="mission"></div>
+        </section>
+        <section>
+          <h2>이상감지 (IF-05)</h2>
+          <div id="events"></div>
+        </section>
+      </div>
     </div>
-    <div id="search-res"></div>
-  </section>
+  </div>
+
+  <!-- 탭2: 미션 이력 · 검색 -->
+  <div id="tab-records" class="tabpanel" style="display:none">
+    <div class="records">
+      <section>
+        <h2>미션 이력</h2>
+        <div id="history"></div>
+      </section>
+      <section>
+        <h2>검색 (DB 기록)</h2>
+        <div class="searchbar">
+          <input id="q" placeholder="미션·상태·목적지·로봇·task 키워드…">
+          <select id="kind">
+            <option value="all">전체</option>
+            <option value="missions">미션</option>
+            <option value="events">이벤트</option>
+            <option value="tasks">task</option>
+          </select>
+        </div>
+        <div id="search-res"></div>
+      </section>
+    </div>
+  </div>
 </main>
 
 <script>
 const TIMEOUT = 10;            // last_seen STALE 임계(초)
 const HANDOVER_TARGET = 3000;  // ms
+
+// 탭 전환 (실시간 관제 / 미션 이력·검색)
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
+  document.getElementById('tab-live').style.display=b.dataset.tab==='live'?'':'none';
+  document.getElementById('tab-records').style.display=b.dataset.tab==='records'?'':'none';
+}));
 
 const ROBOT_CLASS = {
   PATROL:'gray', IDLE:'gray', INTERACTING:'blue', RESERVED:'amber',
@@ -161,18 +240,24 @@ function setConn(ok){
 }
 function setUpdated(){ el('updated').textContent = '· ' + new Date().toLocaleTimeString('ko-KR'); }
 
-function renderRobots(robots){
+function renderRobots(robots, roles){
+  roles = roles || {};
   if(!robots || !robots.length){ el('robots').innerHTML = '<div class="empty">로봇 보고 없음</div>'; return; }
   el('robots').innerHTML = robots.map(r=>{
     const cls = ROBOT_CLASS[r.state] || 'gray';
     const a = ageSec(r.last_seen);
+    const online = a!=null && a<=TIMEOUT;
     const seen = a==null ? '—' : (a>TIMEOUT ? `<span class="stale">${a.toFixed(1)}s STALE</span>` : `${a.toFixed(1)}s 전`);
     const b = r.battery==null ? 0 : r.battery;
     const p = r.pose||{};
     const task = r.current_task_id ? `${esc(shortId(r.current_task_id))} <span class="muted">(${esc(r.task_status||'')})</span>` : '<span class="muted">순찰/대기</span>';
-    return `<div class="robot">
+    const alarm = (r.state==='EMERGENCY' || r.state==='ERROR') ? ' alarm' : '';
+    const role = roles[r.robot_id];
+    const roleChip = role ? `<span class="role-chip ${role}">${role==='start'?'출발·인계':'후속·인수'}</span>` : '';
+    const pill = online ? '<span class="pill on">온라인</span>' : '<span class="pill off">오프라인</span>';
+    return `<div class="robot${alarm}">
       <div class="top"><span class="rid">${esc(r.robot_id)}</span>
-        <span class="badge ${cls}">${esc(r.state||'?')}</span></div>
+        <span class="badge ${cls}">${esc(r.state||'?')}</span>${roleChip}${pill}</div>
       <div class="kv"><span>task</span><b>${task}</b></div>
       <div class="kv"><span>pose</span><b>x ${num(p.x)} · y ${num(p.y)} · θ ${num(p.theta)}</b></div>
       <div class="kv"><span>battery</span><b>${b}%</b></div>
@@ -180,6 +265,44 @@ function renderRobots(robots){
       <div class="kv" style="margin-top:8px"><span>last seen</span><b>${seen}</b></div>
     </div>`;
   }).join('');
+}
+
+// ── 비상 배너 (로봇 EMERGENCY/ERROR 시 상단 강조) ──────────────────────
+function renderEmergency(robots){
+  const bad = (robots||[]).filter(r=> r.state==='EMERGENCY' || r.state==='ERROR');
+  if(!bad.length){ el('emg').className='emg-banner'; el('emg').innerHTML=''; return; }
+  const items = bad.map(r=>`<div class="emg-item">
+      <span><b>${esc(r.robot_id)}</b> <span class="muted">${esc(r.state)}</span></span>
+      <span class="muted">${esc(r.error_code||'')}</span></div>`).join('');
+  el('emg').className='emg-banner show';
+  el('emg').innerHTML = `<h2>⚠ 비상 / 오류</h2><div class="emg-grid">${items}</div>`;
+}
+
+// ── 핸드오버 카드 (start→next 인계 흐름, ui-admin 참고) ────────────────
+const HO_PHASES = ['ESCORTING_TO_HANDOVER','HANDOVER_WAITING'];
+function renderHandover(act, robots){
+  const sec = el('ho-sec');
+  if(!act || !HO_PHASES.includes(act.state) || !act.next_robot){ sec.style.display='none'; el('handover').innerHTML=''; return; }
+  sec.style.display='';
+  const byId={}; (robots||[]).forEach(r=>{ byId[r.robot_id]=r; });
+  const waiting = act.state==='HANDOVER_WAITING';
+  const sState = (byId[act.start_robot]||{}).state;
+  const nState = (byId[act.next_robot]||{}).state;
+  const nextReady = nState==='HANDOVER_READY' || nState==='ESCORTING';
+  const badge = s => s ? `<span class="badge ${ROBOT_CLASS[s]||'gray'}">${esc(s)}</span>` : '';
+  const lat = act.handover_latency_ms;
+  const latHtml = lat!=null ? `<span class="lat ${lat<=HANDOVER_TARGET?'ok':'over'}">${lat} ms</span>` : '<span class="muted">측정 전</span>';
+  el('handover').innerHTML = `<div class="ho-card ${waiting?'urgent':''}">
+    <div class="ho-top"><span class="muted mono">${esc(act.mission_id)}</span>
+      <span class="ho-status ${waiting?'pending':'moving'}">${waiting?'핸드오버 지점 대기':'핸드오버 지점 이동 중'}</span></div>
+    <div class="muted" style="margin-bottom:8px">목적지 <b style="color:var(--txt)">${esc(act.dest_poi)}</b> · 지연 ${latHtml} <span class="muted">(목표 ≤ ${HANDOVER_TARGET}ms)</span></div>
+    <div class="ho-flow">
+      <div class="ho-row"><span class="ho-role">출발·인계</span><span class="mono">${esc(act.start_robot||'—')}</span>${badge(sState)}</div>
+      <div class="ho-arrow">↓</div>
+      <div class="ho-row"><span class="ho-role">후속·인수</span><span class="mono">${esc(act.next_robot||'—')}</span>${badge(nState)}</div>
+    </div>
+    <div class="ho-count ${nextReady?'ready':''}">${nextReady?'후속 로봇 준비 완료 — 인계 진행':'후속 로봇 준비 대기 중'}</div>
+  </div>`;
 }
 
 const TERMINAL = ['COMPLETED','CANCELLED','EMERGENCY','FAILED'];
@@ -288,11 +411,18 @@ async function tick(){
       j('/api/robots'), j('/api/missions'), j('/api/events?limit=8')
     ]);
     setConn(true);
-    renderRobots(robots);
-    renderRobotOnMap(robots);
     const act = (missions.active && missions.active[0]) || (missions.missions && missions.missions[0]) || null;
     let detail = null;
     if(act){ try{ detail = await j('/api/missions/'+act.mission_id); }catch(e){} }
+    const activeMission = (missions.active && missions.active[0]) || null;  // 진행 중인 미션만 역할 표시
+    const roles = {};
+    if(activeMission){
+      if(activeMission.start_robot) roles[activeMission.start_robot]='start';
+      if(activeMission.next_robot) roles[activeMission.next_robot]='next';
+    }
+    renderEmergency(robots);
+    renderRobots(robots, roles);
+    renderHandover(act, robots);
     renderMission(act, detail);
     renderHistory(missions.missions||[]);
     renderEvents(events);
@@ -335,7 +465,12 @@ let _searchTimer;
 el('q').addEventListener('input', ()=>{ clearTimeout(_searchTimer); _searchTimer=setTimeout(doSearch, 300); });
 el('kind').addEventListener('change', doSearch);
 
-loadMaps(); tick(); setInterval(tick, 1000);
+// 3D 관제 뷰(viz_3d) iframe — 같은 출처 Flask /viz (세션 공유, embed 모드)
+(function initMap3d(){
+  const f = el('map3d');
+  if(f) f.src = '/viz?embed=1';
+})();
+tick(); setInterval(tick, 1000);
 </script>
 </body>
 </html>

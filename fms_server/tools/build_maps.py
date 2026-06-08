@@ -15,7 +15,7 @@ import yaml
 from PIL import Image
 
 
-ROOT = Path(__file__).resolve().parents[2]          # test_alfred
+ROOT = Path(__file__).resolve().parents[2]          # alfred_ws
 SRC = ROOT / "docs" / "maps"
 OUT = Path(__file__).resolve().parents[1] / "web" / "maps"
 
