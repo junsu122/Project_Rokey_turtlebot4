@@ -21,6 +21,11 @@ fms_server/fms.db-shm
 # ===== monitor 스택 런타임 DB (적재 산출물 — git 추적 제외) =====
 monitor_db_files/data/
 
+# ===== monitor_server 런타임 DB (DB는 기록 전용 — 절대 규칙 6) =====
+monitor_server/fms.db
+monitor_server/fms.db-wal
+monitor_server/fms.db-shm
+
 # ===== 환경/로그/에디터 =====
 .env
 *.log
