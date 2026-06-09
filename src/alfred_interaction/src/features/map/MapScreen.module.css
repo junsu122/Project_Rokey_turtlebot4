@@ -1,0 +1,128 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.titleBlock {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--font-md);
+  font-weight: var(--weight-black);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+}
+
+.floors {
+  display: flex;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.floorTab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--touch-min);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-soft);
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.floorTabActive {
+  color: var(--color-text-invert);
+  background: var(--color-primary);
+  border-color: var(--color-primary-strong);
+}
+
+.hereTag {
+  font-size: 0.62em;
+  padding: 0.1em 0.6em;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-text-invert);
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+  min-height: 0;
+}
+
+.mapPane {
+  flex: 2 1 0;
+  display: flex;
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.list {
+  flex: 1 1 0;
+  max-width: 42%;
+  display: grid;
+  grid-template-columns: 1fr; /* single column -> wide enough for one-line labels */
+  gap: var(--space-2);
+  align-content: start;
+  overflow-y: auto;
+  padding-bottom: 150px; /* clear the floating staff-call button */
+}
+
+.listCell {
+  display: block;
+}
+
+/* Higher specificity than BigButton's .button so it wins across CSS modules. */
+.list .listItem {
+  width: 100%;
+  justify-content: flex-start; /* icon + name aligned left */
+  gap: var(--space-3);
+  white-space: nowrap; /* never break Korean text per character */
+  text-align: left;
+}
+
+@media (max-aspect-ratio: 1 / 1) {
+  .content {
+    flex-direction: column;
+  }
+  .mapPane {
+    flex: 1 1 auto;
+  }
+  .list {
+    max-width: none;
+    grid-template-columns: repeat(2, 1fr);
+    padding-bottom: 130px;
+  }
+}

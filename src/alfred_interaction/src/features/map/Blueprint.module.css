@@ -1,0 +1,233 @@
+.svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.outline {
+  fill: var(--color-surface);
+  stroke: var(--color-primary);
+  stroke-width: 0.9;
+}
+
+.grid {
+  stroke: var(--color-line);
+  stroke-width: 0.3;
+}
+
+.wall {
+  stroke: var(--color-primary);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
+/* ---- Fixture wrapper ---- */
+.fixture {
+  cursor: pointer;
+}
+
+/* Display-only fixtures (e.g. benches): drawn for orientation, not tappable. */
+.fixtureStatic {
+  cursor: default;
+  pointer-events: none;
+}
+
+.hit {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.selectRing {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 1.6;
+}
+
+.fixture:active .selectRing,
+.fixture:focus-visible .selectRing {
+  stroke: var(--color-primary-strong);
+}
+
+/* ---- Generic shapes ---- */
+.box {
+  fill: var(--color-surface);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.7;
+}
+
+.room {
+  fill: var(--color-primary-soft);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.8;
+}
+
+.transitBox {
+  fill: var(--color-accent);
+  fill-opacity: 0.12;
+  stroke: var(--color-accent-strong);
+}
+
+/* info desk */
+.deskCounter {
+  fill: var(--color-primary-strong);
+}
+
+/* elevator hatch */
+.hatch {
+  stroke: var(--color-primary);
+  stroke-width: 0.7;
+}
+
+/* escalator */
+.tread {
+  stroke: var(--color-primary);
+  stroke-width: 0.7;
+}
+
+.arrow {
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* doors / transfer */
+.doorLeaf {
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+
+.doorArc {
+  stroke: var(--color-primary);
+  stroke-width: 0.6;
+  stroke-dasharray: 1.6 1.2;
+}
+
+.transitStroke {
+  stroke: var(--color-accent-strong);
+}
+
+/* benches */
+.sofa {
+  fill: var(--color-surface);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.8;
+}
+
+.sofaCushion {
+  fill: var(--color-primary-soft);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.45;
+}
+
+.sofaArm {
+  fill: var(--color-surface);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.6;
+}
+
+/* ticket gates */
+.gatePost {
+  fill: var(--color-primary-strong);
+}
+
+.wheelchair {
+  font-size: 6px;
+  fill: var(--color-accent-strong);
+}
+
+/* platforms */
+.safety {
+  stroke: #f5b301;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.platformCode {
+  font-size: 6px;
+  font-weight: 800;
+  fill: var(--color-primary-strong);
+  dominant-baseline: central;
+}
+
+/* marks inside boxes */
+.evMark {
+  font-size: 4.4px;
+  font-weight: 800;
+  fill: var(--color-primary-strong);
+  dominant-baseline: central;
+}
+
+.wcMark {
+  font-size: 6px;
+  font-weight: 800;
+  fill: var(--color-primary-strong);
+  dominant-baseline: central;
+}
+
+/* restroom male/female pictogram */
+.wcFigure {
+  fill: var(--color-primary-strong);
+}
+
+.wcDivider {
+  stroke: var(--color-primary);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  opacity: 0.6;
+}
+
+/* labels */
+.fxLabel {
+  fill: var(--color-text);
+  font-size: 3.6px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* train decoration */
+.trainBody {
+  fill: var(--color-primary-soft);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.8;
+}
+
+.trainWindow {
+  fill: var(--color-surface);
+  stroke: var(--color-primary-strong);
+  stroke-width: 0.4;
+}
+
+.trainStripe {
+  stroke: var(--color-primary);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.trainLabel {
+  fill: var(--color-text-muted);
+  font-size: 3.4px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+}
+
+/* fallback circle marker */
+.dot {
+  fill: #ffffff;
+  stroke: var(--color-primary);
+  stroke-width: 1;
+}
+
+.dotSelected {
+  fill: var(--color-primary);
+  stroke: var(--color-primary-strong);
+}

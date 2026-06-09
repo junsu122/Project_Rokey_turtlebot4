@@ -1,0 +1,101 @@
+/**
+ * Design tokens — single source of truth for color, typography, spacing.
+ * Kiosk-first: everything is intentionally LARGE (requirement #8).
+ * Change values here to re-theme the whole UI.
+ */
+:root {
+  /* ---- Color: brand ---- */
+  --color-bg: #0b1f3a;
+  --color-bg-grad-1: #0b1f3a;
+  --color-bg-grad-2: #143a78;
+  --color-bg-grad-3: #1f5fb0;
+
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef3fb;
+  --color-surface-sunken: #dfe8f6;
+  --color-line: #c7d6ec;
+
+  --color-text: #0b1f3a;
+  --color-text-soft: #41526e;
+  --color-text-muted: #7387a4;
+  --color-text-invert: #ffffff;
+
+  /* ---- Color: roles ---- */
+  --color-primary: #2f6bff; /* Button A — 시설 안내 (map) */
+  --color-primary-strong: #1f4fd6;
+  --color-primary-soft: #e6efff;
+
+  --color-secondary: #ff7a3c; /* Button B — 음성 안내 (voice) */
+  --color-secondary-strong: #e85f22;
+  --color-secondary-soft: #fff0e8;
+
+  --color-accent: #15c39a;
+  --color-accent-strong: #0f9e7d;
+
+  --color-danger: #e23b4e; /* 직원 호출 */
+  --color-danger-strong: #c12435;
+  --color-danger-soft: #fde7ea;
+
+  /* ---- Robot face ---- */
+  --color-face: #ffd23f;
+  --color-face-shadow: #f0b800;
+  --color-face-feature: #0b1f3a;
+  --color-face-blush: #ff9d9d;
+
+  /* ---- Typography ---- */
+  --font-family: 'Pretendard', 'Pretendard Variable', 'Apple SD Gothic Neo',
+    'Malgun Gothic', system-ui, -apple-system, sans-serif;
+
+  --font-2xs: clamp(0.95rem, 1.1vw, 1.25rem);
+  --font-xs: clamp(1.1rem, 1.5vw, 1.6rem);
+  --font-sm: clamp(1.4rem, 2vw, 2.1rem);
+  --font-md: clamp(1.8rem, 2.8vw, 3rem);
+  --font-lg: clamp(2.6rem, 4.4vw, 5rem);
+  --font-xl: clamp(3.6rem, 6.5vw, 8rem);
+  --font-2xl: clamp(5rem, 10vw, 12rem);
+  --font-face: clamp(8rem, 26vh, 22rem);
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  /* ---- Spacing ---- */
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-5: 4rem;
+  --space-6: 6rem;
+  --space-7: 8rem;
+
+  /* ---- Radius ---- */
+  --radius-sm: 0.75rem;
+  --radius-md: 1.5rem;
+  --radius-lg: 2.5rem;
+  --radius-xl: 3.5rem;
+  --radius-pill: 999px;
+
+  /* ---- Sizing ---- */
+  --touch-min: 88px; /* minimum comfortable touch target */
+  --btn-hero-min-h: 40vh; /* the two giant home buttons */
+
+  /* ---- Elevation ---- */
+  --shadow-sm: 0 0.4rem 1rem rgba(8, 20, 45, 0.1);
+  --shadow-md: 0 1rem 2.5rem rgba(8, 20, 45, 0.16);
+  --shadow-lg: 0 2rem 5rem rgba(8, 20, 45, 0.26);
+  --shadow-glow: 0 0 4rem rgba(47, 107, 255, 0.45);
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 160ms;
+  --dur: 280ms;
+  --dur-slow: 600ms;
+
+  /* ---- Layers ---- */
+  --z-base: 1;
+  --z-header: 50;
+  --z-overlay: 100;
+  --z-modal: 200;
+}
