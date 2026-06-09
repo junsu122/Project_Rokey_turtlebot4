@@ -42,7 +42,7 @@ FLOOR_MAP = {
 EVENT_TYPE_MAP = {
     'fire':    'FIRE',
     'patient': 'INJURED_PERSON',
-    'pistol':  'SUSPICIOUS_PERSON',
+    'pistol2': 'SUSPICIOUS_PERSON',
     'knife':   'SUSPICIOUS_PERSON',
     'wallet':  'LOST_ITEM',
     'bag':     'LOST_ITEM',

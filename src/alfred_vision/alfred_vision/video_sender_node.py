@@ -31,10 +31,8 @@ import rclpy
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
-from cv_bridge import CvBridge
-from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import Image
 
 try:
     import cv2
@@ -106,22 +104,22 @@ class VideoSenderNode(Node):
 
         self.holder = FrameHolder()
         self._frames = 0
-        self.create_subscription(CompressedImage, self.topic, self._on_image, 5)
+        self.create_subscription(Image, self.topic, self._on_image, 5)
         self.get_logger().info(
             f"video_sender_node 시작 · 토픽={self.topic} · "
             f"시그널링 http://{self.http_host}:{self.http_port}/offer"
         )
 
-    def _on_image(self, msg: CompressedImage) -> None:
-        # JPEG 바이트 → BGR ndarray (cv_bridge 불필요)
-        buf = np.frombuffer(msg.data, dtype=np.uint8)
-        img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-        if img is not None:
-            self.holder.set(img)
-            self._frames += 1
-            if self._frames % 100 == 0:
-                self.get_logger().info(
-                    f"수신 프레임 {self._frames} · {img.shape[1]}x{img.shape[0]}")
+    def _on_image(self, msg: Image) -> None:
+        # sensor_msgs/Image → BGR ndarray (cv_bridge 없이 직접 변환)
+        img = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
+        if msg.encoding == 'rgb8':
+            img = img[:, :, ::-1]
+        self.holder.set(img.copy())
+        self._frames += 1
+        if self._frames % 100 == 0:
+            self.get_logger().info(
+                f"수신 프레임 {self._frames} · {msg.width}x{msg.height}")
 
 
 # ── 시그널링 HTTP 서버 (aiohttp, asyncio 루프) ─────────────────────────────
@@ -186,7 +184,6 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 

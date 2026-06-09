@@ -3,7 +3,7 @@
 <package format="3">
   <name>alfred_bridge</name>
   <version>0.1.0</version>
-  <description>ROS ↔ MQTT/IF 양방향 번역 브리지 노드 (유닛당 1개, FMS와 유일한 통신 창구)</description>
+  <description>로봇 상태 머신 + 분산 릴레이 에스코트 두뇌 노드 (fms_server 폐기 후 ROS2 단일 통신)</description>
   <maintainer email="sunq0726@gmail.com">ROKEY 7기 지능1 Team Alfred</maintainer>
   <license>MIT</license>
 
@@ -14,8 +14,7 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>irobot_create_msgs</exec_depend>
   <exec_depend>lifecycle_msgs</exec_depend>
-  <!-- paho-mqtt: rosdep key. 없으면 pip install paho-mqtt -->
-  <exec_depend>python3-paho-mqtt</exec_depend>
+  <exec_depend>alfred_interfaces</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
