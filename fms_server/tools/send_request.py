@@ -4,8 +4,8 @@
 기본 흐름: (호출 재현) 시작 로봇을 INTERACTING으로 만든 뒤 → IF-01 발행.
 
 실행 예:
-    python3 tools/send_request.py --robot-id robot2 --dest GATE_30 --dest-floor 2 --origin-floor 1
-    python3 tools/send_request.py --robot-id robot2 --dest GATE_30 --dest-floor 1 --origin-floor 1   # 같은 층 직행
+    python3 tools/send_request.py --robot-id robot2 --dest trans --dest-floor 2 --origin-floor 1
+    python3 tools/send_request.py --robot-id robot2 --dest info --dest-floor 1 --origin-floor 1   # 같은 층 직행
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from transport import MqttTransport  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser(description="IF-01 ESCORT 발행 (Interaction 시뮬레이터)")
     parser.add_argument("--robot-id", required=True, help="호출받은 로봇(=start_robot)")
-    parser.add_argument("--dest", help="목적지 poi_id (예: GATE_30) — ESCORT 시 필수")
+    parser.add_argument("--dest", help="목적지 poi_id (예: trans, info) — ESCORT 시 필수")
     parser.add_argument("--dest-floor", type=int, help="ESCORT 시 필수")
     parser.add_argument("--origin-floor", type=int, default=1)
     parser.add_argument("--cancel", action="store_true",

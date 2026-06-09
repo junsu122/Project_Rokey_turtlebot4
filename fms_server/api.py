@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, request, send_from_directory, session
@@ -20,6 +21,7 @@ import db
 
 logger = logging.getLogger("fms.api")
 WEB_DIR = Path(__file__).resolve().parent / "web"
+VIZ_DIR = Path(__file__).resolve().parent.parent / "viz_3d"  # 3D 관제 뷰(단일 HTML)
 
 
 def create_app(registry) -> Flask:
@@ -66,6 +68,11 @@ def create_app(registry) -> Flask:
     def dashboard():
         return send_from_directory(WEB_DIR, "dashboard.html")
 
+    # 3D 관제 뷰(viz_3d). require_login 적용(공개 경로 아님) → :5000 세션 공유.
+    @app.get("/viz")
+    def viz():
+        return send_from_directory(VIZ_DIR, "index.html")
+
     # 맵 메타(층·로봇·해상도·원점·픽셀크기) + 맵 이미지(png) 서빙
     @app.get("/api/maps")
     def maps():
@@ -77,6 +84,14 @@ def create_app(registry) -> Flask:
     @app.get("/maps/<path:fname>")
     def map_file(fname: str):
         return send_from_directory(WEB_DIR / "maps", fname)
+
+    # 영상 소스 메타데이터(시그널링 URL만). 미디어는 로봇↔브라우저 P2P — FMS 우회.
+    @app.get("/api/video_sources")
+    def video_sources():
+        p = WEB_DIR / "video_sources.json"
+        if not p.exists():
+            return jsonify({"sources": []})
+        return app.response_class(p.read_text(encoding="utf-8"), mimetype="application/json")
 
     @app.get("/api/health")
     def health():
@@ -113,8 +128,29 @@ def create_app(registry) -> Flask:
     @app.get("/api/events")
     def events():
         limit = request.args.get("limit", 50, type=int)
+        active = request.args.get("active", type=int)  # 1 → 미조치(resolved=0)만
+        if active:
+            return jsonify(db.query_all(
+                "SELECT * FROM events WHERE resolved=0 ORDER BY at DESC LIMIT ?", (limit,)))
         return jsonify(db.query_all(
             "SELECT * FROM events ORDER BY at DESC LIMIT ?", (limit,)))
+
+    # 운영자 조치 완료 → 알림 해제. 절대 규칙 7(Flask 읽기전용)의 예외 — 단, 이는
+    # **로봇 제어/미션 생성이 아니라 관제사 확인(ack)** 이다. 규칙을 엄격히 지키려면
+    # 이 한 곳을 MQTT(운영자 액션 토픽) 구독으로 옮기면 된다(나머지는 그대로).
+    @app.post("/api/events/<int:event_id>/resolve")
+    def resolve_event(event_id: int):
+        ev = db.query_one("SELECT id, resolved FROM events WHERE id=?", (event_id,))
+        if not ev:
+            return jsonify({"error": "event not found"}), 404
+        if ev["resolved"]:
+            return jsonify({"ok": True, "already": True})
+        user = session.get("user", "operator")
+        db.execute(
+            "UPDATE events SET resolved=1, resolved_at=?, resolved_by=? WHERE id=?",
+            (db.utc_now_iso(), user, event_id))
+        logger.info("event %s resolved by %s", event_id, user)
+        return jsonify({"ok": True, "event_id": event_id, "resolved_by": user})
 
     @app.get("/api/search")
     def search():
@@ -203,6 +239,147 @@ def create_app(registry) -> Flask:
             },
             "handover": handover,
             "events": events_stat,
+        })
+
+    # ── 시스템 상태 (탭: 시스템 상태) ──────────────────────────────────────
+    # FMS 관점의 헬스: MQTT 도달성 + DB + 로봇 온라인 집계. ROS2는 MQTT 경유라
+    # FMS가 직접 알지 못한다(절대 규칙 5) → 여기선 알 수 있는 신호만 보고.
+    @app.get("/api/system")
+    def system():
+        # MQTT 브로커 TCP 도달성(읽기 전용 소켓 연결 테스트)
+        mqtt_ok = False
+        try:
+            with socket.create_connection((config.MQTT_HOST, config.MQTT_PORT), timeout=0.4):
+                mqtt_ok = True
+        except OSError:
+            mqtt_ok = False
+        # DB 도달성
+        db_ok = True
+        try:
+            db.query_one("SELECT 1 AS ok")
+        except Exception:
+            db_ok = False
+        # 로봇 온라인 집계 (메모리 스냅샷 기준, last_seen 임계 = STATUS_TIMEOUT)
+        snaps = registry.all_snapshots()
+        timeout_s = getattr(config, "STATUS_TIMEOUT", 10)
+        online = 0
+        for s in snaps:
+            ls = s.get("last_seen")
+            if not ls:
+                continue
+            try:
+                from datetime import datetime, timezone
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(ls)).total_seconds()
+                if age <= timeout_s:
+                    online += 1
+            except Exception:
+                pass
+        counts = {
+            "missions": (db.query_one("SELECT COUNT(*) c FROM missions") or {}).get("c", 0),
+            "requests": (db.query_one("SELECT COUNT(*) c FROM requests") or {}).get("c", 0),
+            "tasks": (db.query_one("SELECT COUNT(*) c FROM tasks") or {}).get("c", 0),
+            "status_log": (db.query_one("SELECT COUNT(*) c FROM robot_status_log") or {}).get("c", 0),
+            "events": (db.query_one("SELECT COUNT(*) c FROM events") or {}).get("c", 0),
+        }
+        return jsonify({
+            "mqtt": {"ok": mqtt_ok, "host": config.MQTT_HOST, "port": config.MQTT_PORT},
+            "db": {"ok": db_ok, "path": os.path.basename(config.DB_PATH)},
+            "robots": {"total": len(snaps), "online": online,
+                       "offline": len(snaps) - online, "timeout_s": timeout_s},
+            "counts": counts,
+        })
+
+    # ── 로봇 상태 추이 (탭: 로봇 추이) — robot_status_log 시계열 ───────────
+    @app.get("/api/robot_log")
+    def robot_log():
+        limit = request.args.get("limit", 300, type=int)
+        robot_id = request.args.get("robot_id")
+        if robot_id:
+            rows = db.query_all(
+                "SELECT robot_id, state, prev_state, task_id, task_status, battery, "
+                "x, y, at FROM robot_status_log WHERE robot_id=? "
+                "ORDER BY id DESC LIMIT ?", (robot_id, limit))
+        else:
+            rows = db.query_all(
+                "SELECT robot_id, state, prev_state, task_id, task_status, battery, "
+                "x, y, at FROM robot_status_log ORDER BY id DESC LIMIT ?", (limit,))
+        rows.reverse()  # 시간 오름차순(차트용)
+        ids = db.query_all("SELECT DISTINCT robot_id FROM robot_status_log ORDER BY robot_id")
+        return jsonify({"robots": [r["robot_id"] for r in ids], "log": rows})
+
+    # ── 미션 상태 전이 타임라인 (탭: 미션 타임라인) ───────────────────────
+    @app.get("/api/transitions")
+    def transitions():
+        limit = request.args.get("limit", 12, type=int)
+        mids = db.query_all(
+            "SELECT mission_id, MAX(id) mx FROM mission_transitions "
+            "GROUP BY mission_id ORDER BY mx DESC LIMIT ?", (limit,))
+        out = []
+        for row in mids:
+            mid = row["mission_id"]
+            m = db.query_one(
+                "SELECT mission_id, state, start_robot, next_robot, dest_poi, "
+                "handover_latency_ms, created_at FROM missions WHERE mission_id=?", (mid,))
+            trs = db.query_all(
+                "SELECT from_state, to_state, trigger, at FROM mission_transitions "
+                "WHERE mission_id=? ORDER BY id", (mid,))
+            out.append({"mission": m, "transitions": trs})
+        return jsonify({"missions": out})
+
+    # ── 요청 인박스 (탭: 요청·태스크) — requests + tasks ──────────────────
+    @app.get("/api/requests")
+    def requests_list():
+        limit = request.args.get("limit", 30, type=int)
+        reqs = db.query_all(
+            "SELECT request_id, robot_id, request_type, received_at FROM requests "
+            "ORDER BY received_at DESC LIMIT ?", (limit,))
+        for r in reqs:
+            r["missions"] = db.query_all(
+                "SELECT mission_id, state, dest_poi, handover_latency_ms FROM missions "
+                "WHERE request_id=? ORDER BY created_at", (r["request_id"],))
+        tasks = db.query_all(
+            "SELECT task_id, mission_id, robot_id, task_type, goal_poi, ack, "
+            "final_status, issued_at, finished_at FROM tasks "
+            "ORDER BY issued_at DESC LIMIT ?", (limit,))
+        return jsonify({"requests": reqs, "tasks": tasks})
+
+    # ── 관제 현황 카운터 (탭: 관제 현황) — 기록 집계 ──────────────────────
+    @app.get("/api/control_stats")
+    def control_stats():
+        one = lambda sql, p=(): (db.query_one(sql, p) or {}).get("c", 0)  # noqa: E731
+        passengers = one("SELECT COUNT(*) c FROM missions")
+        escorts = one("SELECT COUNT(*) c FROM missions WHERE state='COMPLETED'")
+
+        # 언어 한/중/일/영 (language 첫 2글자 정규화: ko/zh/ja/en)
+        lang = {"ko": 0, "zh": 0, "ja": 0, "en": 0, "etc": 0}
+        for r in db.query_all("SELECT language, COUNT(*) c FROM missions GROUP BY language"):
+            code = (r["language"] or "").lower()[:2]
+            if code in lang:
+                lang[code] += r["c"]
+            elif code:
+                lang["etc"] += r["c"]
+
+        # 고객 profile 분포 + 교통약자(노약자·시각장애) 집계
+        profile = {}
+        for r in db.query_all("SELECT customer_profile p, COUNT(*) c FROM missions GROUP BY customer_profile"):
+            profile[r["p"] or "UNKNOWN"] = r["c"]
+        vulnerable = profile.get("ELDERLY", 0) + profile.get("VISUALLY_IMPAIRED", 0)
+
+        # IF-05 이벤트(화재/거수자/긴급환자)
+        ev = {e["event_type"]: e["c"]
+              for e in db.query_all("SELECT event_type, COUNT(*) c FROM events GROUP BY event_type")}
+
+        return jsonify({
+            "passengers": passengers,
+            "escorts": escorts,
+            "languages": lang,
+            "profile": profile,
+            "vulnerable": vulnerable,
+            "events": {
+                "fire": ev.get("FIRE", 0),
+                "suspicious": ev.get("SUSPICIOUS_PERSON", 0),
+                "patient": ev.get("EMERGENCY_PATIENT", 0),
+            },
         })
 
     return app

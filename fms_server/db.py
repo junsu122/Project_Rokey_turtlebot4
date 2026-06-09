@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS missions (
     next_robot          TEXT,
     dest_poi            TEXT,
     customer_profile    TEXT,
+    language            TEXT,
     created_at          TEXT,
     completed_at        TEXT,
     handover_latency_ms INTEGER
@@ -91,7 +92,10 @@ CREATE TABLE IF NOT EXISTS events (
     y            REAL,
     floor        INTEGER,
     snapshot_ref TEXT,
-    at           TEXT
+    at           TEXT,
+    resolved     INTEGER DEFAULT 0,
+    resolved_at  TEXT,
+    resolved_by  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_missions_created   ON missions(created_at DESC);
@@ -117,9 +121,24 @@ def init_db(db_path: str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     conn.commit()
     _conn = conn
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """기존 DB에 누락 컬럼 보강(멱등). CREATE TABLE IF NOT EXISTS 는 컬럼 추가 안 함."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(missions)")}
+    if "language" not in cols:
+        conn.execute("ALTER TABLE missions ADD COLUMN language TEXT")
+    ecols = {r["name"] for r in conn.execute("PRAGMA table_info(events)")}
+    if "resolved" not in ecols:
+        conn.execute("ALTER TABLE events ADD COLUMN resolved INTEGER DEFAULT 0")
+    if "resolved_at" not in ecols:
+        conn.execute("ALTER TABLE events ADD COLUMN resolved_at TEXT")
+    if "resolved_by" not in ecols:
+        conn.execute("ALTER TABLE events ADD COLUMN resolved_by TEXT")
 
 
 def get_conn() -> sqlite3.Connection:

@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
-"""
-WebRTC video sender node.
+"""video_sender_node — 카메라 라이브 영상 WebRTC 송신 (데이터 평면, FMS/브리지 우회).
 
-Subscribes to /{namespace}/detection/image and serves it as a VP8 WebRTC stream.
-Browser (recvonly) sends SDP offer to POST /offer, receives non-trickle answer.
+설계(아키텍처 다이어그램·bridge_config 주석):
+  영상은 제어 평면(FMS/MQTT)을 거치지 않는다. 로봇이 직접 브라우저(관리자 UI)와
+  WebRTC P2P 연결을 맺고, FMS는 시그널링 URL 메타데이터만 제공한다.
 
-Usage:
-  ros2 run alfred_vision video_sender --ros-args \
-    -p namespace:=/robot2 -p signal_port:=8081
+동작:
+  ▼ subs : <image_topic>  (sensor_msgs/CompressedImage, JPEG)
+  → aiortc 비디오 트랙으로 인코딩(VP8) → 브라우저로 P2P 송신
+  시그널링: 이 노드가 직접 띄우는 HTTP 서버  POST /offer  (SDP offer→answer)
+
+파라미터:
+  image_topic (str)  기본 '/camera/image_raw/compressed' — 로봇별로 지정
+                     예) robot2/oakd/rgb/image_raw/compressed
+  http_host  (str)   기본 '0.0.0.0'
+  http_port  (int)   기본 8081
+  fps        (int)   기본 20 (송신 프레임률 상한)
+
+의존성(로봇에 설치): aiortc, aiohttp, numpy, opencv-python  (av 는 aiortc 가 끌어옴)
+  pip install aiortc aiohttp opencv-python numpy
 """
+from __future__ import annotations
+
 import asyncio
-import json
+import logging
 import threading
-from fractions import Fraction
 
-import av
-import cv2
 import numpy as np
 import rclpy
 from aiohttp import web
@@ -24,140 +34,155 @@ from av import VideoFrame
 from cv_bridge import CvBridge
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
+
+try:
+    import cv2
+    import av
+    from aiohttp import web
+    from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+except ImportError as e:  # 로봇에 의존성 미설치 시 명확히 안내하고 종료
+    raise SystemExit(
+        f"WebRTC 의존성 누락: {e}\n"
+        "  pip install aiortc aiohttp opencv-python numpy"
+    )
+
+logger = logging.getLogger("video_sender")
+
+# CORS: 대시보드(다른 출처)에서 fetch 하므로 허용. LAN 데모 기준 와일드카드.
+CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+}
 
 
-class _RosVideoTrack(VideoStreamTrack):
-    kind = "video"
+class FrameHolder:
+    """ROS 콜백(ROS 스레드)이 최신 프레임을 쓰고, 트랙(asyncio)이 읽는 공유 버퍼."""
 
-    def __init__(self):
-        super().__init__()
-        self._bgr  = None
+    def __init__(self) -> None:
+        self._frame: np.ndarray | None = None
         self._lock = threading.Lock()
-        self._pts  = 0
 
-    def push(self, bgr: np.ndarray):
+    def set(self, frame: np.ndarray) -> None:
         with self._lock:
-            self._bgr = bgr.copy()
+            self._frame = frame
 
-    async def recv(self) -> VideoFrame:
-        await asyncio.sleep(1 / 30)
+    def get(self) -> np.ndarray | None:
         with self._lock:
-            bgr = self._bgr
+            return self._frame
 
-        if bgr is None:
-            bgr = np.zeros((480, 640, 3), dtype=np.uint8)
 
-        rgb          = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        vf           = VideoFrame.from_ndarray(rgb, format="rgb24")
-        vf.pts       = self._pts
-        vf.time_base = Fraction(1, 90000)
-        self._pts   += 3000  # 90000 / 30fps
+class RosVideoTrack(VideoStreamTrack):
+    """holder 의 최신 BGR 프레임을 aiortc 비디오 트랙으로 송출. 30fps 페이싱은 base 제공."""
+
+    def __init__(self, holder: FrameHolder) -> None:
+        super().__init__()
+        self.holder = holder
+        self._blank = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    async def recv(self):
+        pts, time_base = await self.next_timestamp()  # VideoStreamTrack 기본 페이싱
+        frame = self.holder.get()
+        if frame is None:
+            frame = self._blank
+        vf = av.VideoFrame.from_ndarray(frame, format="bgr24")
+        vf.pts = pts
+        vf.time_base = time_base
         return vf
 
 
 class VideoSenderNode(Node):
-    def __init__(self):
-        super().__init__('video_sender')
+    def __init__(self) -> None:
+        super().__init__("video_sender_node")
+        self.declare_parameter("image_topic", "/camera/image_raw/compressed")
+        self.declare_parameter("http_host", "0.0.0.0")
+        self.declare_parameter("http_port", 8081)
+        self.declare_parameter("fps", 20)
 
-        self.declare_parameter('namespace',   '/robot2')
-        self.declare_parameter('signal_port', 8081)
+        self.topic = self.get_parameter("image_topic").value
+        self.http_host = self.get_parameter("http_host").value
+        self.http_port = int(self.get_parameter("http_port").value)
 
-        ns   = self.get_parameter('namespace').value.strip()
-        port = self.get_parameter('signal_port').value
+        self.holder = FrameHolder()
+        self._frames = 0
+        self.create_subscription(CompressedImage, self.topic, self._on_image, 5)
+        self.get_logger().info(
+            f"video_sender_node 시작 · 토픽={self.topic} · "
+            f"시그널링 http://{self.http_host}:{self.http_port}/offer"
+        )
 
-        self._bridge = CvBridge()
-        self._track  = _RosVideoTrack()
-        self._pcs    = set()
+    def _on_image(self, msg: CompressedImage) -> None:
+        # JPEG 바이트 → BGR ndarray (cv_bridge 불필요)
+        buf = np.frombuffer(msg.data, dtype=np.uint8)
+        img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+        if img is not None:
+            self.holder.set(img)
+            self._frames += 1
+            if self._frames % 100 == 0:
+                self.get_logger().info(
+                    f"수신 프레임 {self._frames} · {img.shape[1]}x{img.shape[0]}")
 
-        self.create_subscription(Image, f'{ns}/detection/image', self._cb_image, 1)
-        self.get_logger().info(f'[{ns}] video_sender 시작 — port {port}')
 
-        self._loop = asyncio.new_event_loop()
-        t = threading.Thread(target=self._run_server, args=(port,), daemon=True)
-        t.start()
+# ── 시그널링 HTTP 서버 (aiohttp, asyncio 루프) ─────────────────────────────
+pcs: set = set()
 
-    # ── ROS callback ──────────────────────────────────────────────────────────
 
-    def _cb_image(self, msg: Image):
-        bgr = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-        self._track.push(bgr)
+async def _offer(request: "web.Request") -> "web.Response":
+    holder: FrameHolder = request.app["holder"]
+    params = await request.json()
+    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
-    # ── HTTP signaling server ─────────────────────────────────────────────────
+    pc = RTCPeerConnection()
+    pcs.add(pc)
 
-    def _run_server(self, port: int):
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_until_complete(self._serve(port))
+    @pc.on("connectionstatechange")
+    async def _on_state() -> None:
+        logger.info("peer state: %s", pc.connectionState)
+        if pc.connectionState in ("failed", "closed", "disconnected"):
+            await pc.close()
+            pcs.discard(pc)
 
-    async def _serve(self, port: int):
-        app = web.Application()
-        app.router.add_options('/offer',  self._handle_cors)
-        app.router.add_post  ('/offer',   self._handle_offer)
-        app.router.add_get   ('/health',  self._handle_health)
+    pc.addTrack(RosVideoTrack(holder))
+    await pc.setRemoteDescription(offer)
+    answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+    return web.json_response(
+        {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type},
+        headers=CORS,
+    )
 
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', port)
-        await site.start()
-        await asyncio.Event().wait()  # run forever
 
-    @staticmethod
-    def _cors(resp: web.Response) -> web.Response:
-        resp.headers['Access-Control-Allow-Origin']  = '*'
-        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        return resp
+async def _options(request: "web.Request") -> "web.Response":
+    return web.Response(headers=CORS)
 
-    async def _handle_cors(self, request: web.Request) -> web.Response:
-        return self._cors(web.Response(status=200))
 
-    async def _handle_health(self, request: web.Request) -> web.Response:
-        return self._cors(web.json_response({'status': 'ok', 'peers': len(self._pcs)}))
+async def _health(request: "web.Request") -> "web.Response":
+    return web.json_response({"status": "ok", "peers": len(pcs)}, headers=CORS)
 
-    async def _handle_offer(self, request: web.Request) -> web.Response:
-        body  = await request.json()
-        offer = RTCSessionDescription(sdp=body['sdp'], type=body['type'])
 
-        pc = RTCPeerConnection()
-        self._pcs.add(pc)
-
-        @pc.on('connectionstatechange')
-        async def on_state():
-            if pc.connectionState in ('failed', 'closed'):
-                await pc.close()
-                self._pcs.discard(pc)
-
-        await pc.setRemoteDescription(offer)
-        pc.addTrack(self._track)
-
-        answer = await pc.createAnswer()
-        await pc.setLocalDescription(answer)
-
-        # non-trickle: ICE 수집 완료 대기 후 answer 반환
-        ice_done = asyncio.Event()
-
-        @pc.on('icegatheringstatechange')
-        def on_ice():
-            if pc.iceGatheringState == 'complete':
-                ice_done.set()
-
-        if pc.iceGatheringState != 'complete':
-            await asyncio.wait_for(ice_done.wait(), timeout=10.0)
-
-        resp = web.json_response({
-            'sdp':  pc.localDescription.sdp,
-            'type': pc.localDescription.type,
-        })
-        return self._cors(resp)
+async def _on_shutdown(app: "web.Application") -> None:
+    await asyncio.gather(*[pc.close() for pc in list(pcs)], return_exceptions=True)
+    pcs.clear()
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = VideoSenderNode()
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
+
+    # ROS 스핀은 별도 스레드(콜백에서 프레임만 적재). 시그널링/미디어는 메인 asyncio 루프.
+    spin = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+    spin.start()
+
+    app = web.Application()
+    app["holder"] = node.holder
+    app.router.add_post("/offer", _offer)
+    app.router.add_options("/offer", _options)
+    app.router.add_get("/health", _health)
+    app.on_shutdown.append(_on_shutdown)
+
     try:
-        executor.spin()
+        web.run_app(app, host=node.http_host, port=node.http_port, print=None)
     except KeyboardInterrupt:
         pass
     finally:
