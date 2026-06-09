@@ -1,0 +1,83 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  text-align: center;
+  width: 100%;
+}
+
+.face {
+  width: var(--font-face);
+  height: auto;
+  max-width: 86vw;
+  filter: drop-shadow(0 1.5rem 2.5rem rgba(0, 0, 0, 0.35));
+  animation: bob 4.5s var(--ease-in-out) infinite;
+}
+
+/* Enlarged face for the patrol screen. */
+.faceXl {
+  width: clamp(16rem, 52vh, 40rem);
+}
+
+.head {
+  fill: var(--color-face);
+}
+
+.feature {
+  stroke: var(--color-face-feature);
+  stroke-width: 12;
+}
+
+.smile {
+  stroke-width: 13;
+}
+
+.blush {
+  fill: var(--color-face-blush);
+  opacity: 0.55;
+}
+
+.eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 5.5s var(--ease-in-out) infinite;
+}
+
+.caption {
+  font-size: var(--font-xl);
+  font-weight: var(--weight-black);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.subtitle {
+  font-size: var(--font-md);
+  font-weight: var(--weight-medium);
+  opacity: 0.86;
+  max-width: 24ch;
+  line-height: 1.35;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.2deg);
+  }
+  50% {
+    transform: translateY(-2.4%) rotate(1.2deg);
+  }
+}
+
+@keyframes blink {
+  0%,
+  89%,
+  100% {
+    transform: scaleY(1);
+  }
+  93%,
+  95% {
+    transform: scaleY(0.12);
+  }
+}

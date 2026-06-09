@@ -1,0 +1,52 @@
+.screen {
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.hints {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.hint {
+  text-align: center;
+  font-size: var(--font-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-invert);
+  opacity: 0.92;
+  animation: pulse 2.4s var(--ease-in-out) infinite;
+}
+
+.wake {
+  font-size: var(--font-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-invert);
+  opacity: 0.85;
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--touch-min);
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius-pill);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-0.4rem);
+  }
+}

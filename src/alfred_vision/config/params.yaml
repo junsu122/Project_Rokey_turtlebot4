@@ -1,0 +1,27 @@
+detector_robot2:
+  ros__parameters:
+    namespace: /robot2
+
+detector_robot4:
+  ros__parameters:
+    namespace: /robot4
+
+event_handler_robot2:
+  ros__parameters:
+    namespace: /robot2
+    emergency_exit: entrance   # entrance | entrance2
+
+event_handler_robot4:
+  ros__parameters:
+    namespace: /robot4
+    emergency_exit: gate       # gate | gate_b
+
+video_sender_robot2:
+  ros__parameters:
+    namespace: /robot2
+    signal_port: 8081
+
+video_sender_robot4:
+  ros__parameters:
+    namespace: /robot4
+    signal_port: 8082

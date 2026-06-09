@@ -1,0 +1,92 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0a0a0f;
+  color: var(--color-text-invert);
+  text-align: center;
+}
+
+/* Pulsing accent wash — urgent, hard to ignore. */
+.flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 42%,
+    var(--alert-accent),
+    transparent 72%
+  );
+  animation: alertFlash 0.9s steps(1, end) infinite;
+  pointer-events: none;
+}
+
+@keyframes alertFlash {
+  0%,
+  100% {
+    opacity: 0.92;
+  }
+  50% {
+    opacity: 0.32;
+  }
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.emoji {
+  font-size: clamp(7rem, 26vh, 17rem);
+  line-height: 1;
+  filter: drop-shadow(0 0 2rem rgba(0, 0, 0, 0.55));
+  animation: alertPulse 0.7s var(--ease-in-out) infinite;
+}
+
+@keyframes alertPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-xl);
+  font-weight: var(--weight-black);
+  letter-spacing: 0.03em;
+  text-shadow: 0 0.2rem 1.6rem rgba(0, 0, 0, 0.65);
+}
+
+.detail {
+  margin: 0;
+  font-size: var(--font-md);
+  font-weight: var(--weight-bold);
+  opacity: 0.96;
+}
+
+.dismiss {
+  position: absolute;
+  z-index: 1;
+  bottom: var(--space-5);
+  min-height: var(--touch-min);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-invert);
+  background: rgba(0, 0, 0, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-pill);
+}

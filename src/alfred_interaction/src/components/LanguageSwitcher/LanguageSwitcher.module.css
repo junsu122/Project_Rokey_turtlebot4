@@ -1,0 +1,29 @@
+.switcher {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  padding: 0.4rem;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-pill);
+}
+
+.option {
+  flex: 0 0 auto;
+  min-height: 56px;
+  padding: 0 var(--space-3);
+  font-size: var(--font-xs);
+  font-weight: var(--weight-bold);
+  white-space: nowrap; /* keep "한국어"/"日本語" on one line */
+  color: var(--color-text-soft);
+  background: transparent;
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.active {
+  color: var(--color-text-invert);
+  background: var(--color-primary);
+}

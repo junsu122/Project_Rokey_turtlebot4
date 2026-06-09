@@ -1,0 +1,35 @@
+{
+  "name": "rokey-alfred-kiosk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "지하철 역사 안내 로봇(Turtlebot4) 키오스크 UI",
+  "scripts": {
+    "dev": "vite",
+    "dev:2f": "vite --mode f2",
+    "build": "tsc -b && vite build",
+    "build:2f": "tsc -b && vite build --mode f2",
+    "preview": "vite preview --host",
+    "kiosk": "vite preview --host --port 4173",
+    "server": "node server/proxy.mjs",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.102.0",
+    "@soniox/speech-to-text-web": "^1.4.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.7"
+  }
+}

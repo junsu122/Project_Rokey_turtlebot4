@@ -28,6 +28,11 @@ import threading
 
 import numpy as np
 import rclpy
+from aiohttp import web
+from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+from av import VideoFrame
+from cv_bridge import CvBridge
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 
@@ -161,7 +166,7 @@ async def _on_shutdown(app: "web.Application") -> None:
     pcs.clear()
 
 
-def main(args=None) -> None:
+def main(args=None):
     rclpy.init(args=args)
     node = VideoSenderNode()
 
@@ -181,9 +186,10 @@ def main(args=None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
