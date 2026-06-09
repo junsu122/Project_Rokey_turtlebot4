@@ -25,6 +25,11 @@ setup(
     entry_points={
         'console_scripts': [
             'behavior_node = alfred_driving.behavior_node:main',
+            'escort_node = alfred_driving.escort_node:main',
+            'navigation_node = alfred_driving.navigation_node:main',
+            'patrol_node = alfred_driving.patrol_node:main',
+            'rosbridge_node = alfred_driving.rosbridge_node:main',
+            'web_request_node = alfred_driving.web_request_node:main',
         ],
     },
 )
