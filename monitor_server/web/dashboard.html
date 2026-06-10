@@ -101,10 +101,16 @@
         <h2>3D 관제 뷰</h2>
         <iframe class="map3d" src="/viz?norobot"></iframe>
       </section>
-      <section>
-        <h2>활성 이벤트</h2>
-        <div id="overviewActiveEvents"></div>
-      </section>
+      <div>
+        <section>
+          <h2>활성 이벤트</h2>
+          <div id="overviewActiveEvents"></div>
+        </section>
+        <section>
+          <h2>로봇 상태</h2>
+          <div id="overviewRobotStatus"></div>
+        </section>
+      </div>
     </div>
   </div>
 
@@ -284,6 +290,18 @@ function renderRobotCards(robots){
   }).join('') : '<div class="empty">수신된 로봇 상태 없음</div>';
   $('robotCards').innerHTML = html;
 }
+// 개요 탭 우측: 로봇별 현재 상태(PATROL/ESCORTING 등) 요약. 로봇 상태 탭은 별도 유지.
+function renderOverviewRobotStatus(robots){
+  $('overviewRobotStatus').innerHTML = robots.length ? robots.map(r=>`
+    <div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div><b>${esc(r.robot_id)}</b> <span class="muted">${r.floor?`${r.floor}층`:''}</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="muted" style="font-size:12px">${r.battery ?? '-'}%</span>
+        <span class="badge ${badgeForState(r.state)}">${esc(r.state || 'UNKNOWN')}</span>
+        <span class="pill ${r.online?'onpill':'offpill'}">${r.online?'ON':'OFF'}</span>
+      </div>
+    </div>`).join('') : '<div class="empty">수신된 로봇 상태 없음</div>';
+}
 function renderRobotLog(data){
   const rows = (data.log || []).slice(-80).reverse();
   const floors = Object.fromEntries((latest.robots || []).map(r => [r.robot_id, r.floor]));
@@ -302,7 +320,12 @@ function renderEvents(id, events, active=false){
 }
 function renderSystem(sys){
   const ros = sys.ros || {}, db = sys.db || {}, r = sys.robots || {}, c = sys.counts || {};
-  const topics = [...(ros.robot_state_topics || []), ...(ros.event_topics || [])].join(', ');
+  const topics = [
+    ...(ros.robot_state_topics || []),
+    ...(ros.event_topics || []),
+    ...(ros.detection_topics || []),
+    ...(ros.information_topic ? [ros.information_topic] : []),
+  ].join(', ');
   $('system').innerHTML = `<table>
     <tr><th>ROS2</th><td>${esc(ros.mode || 'direct')} · ${esc(topics || '-')}</td></tr>
     <tr><th>DB</th><td>${db.ok?'정상':'오류'} · ${esc(db.path)}</td></tr>
@@ -365,6 +388,7 @@ async function load(){
     renderSummary(stats, sys);
     renderOps(stats);
     renderRobotCards(robots);
+    renderOverviewRobotStatus(robots);
     renderRobotLog(robotLog);
     renderEmergencyAlarms(active);
     renderEvents('overviewActiveEvents', active, true);

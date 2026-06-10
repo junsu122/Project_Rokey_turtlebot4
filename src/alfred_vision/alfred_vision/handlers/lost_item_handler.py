@@ -3,6 +3,9 @@ class LostItemHandler:
         self._node = node
         self._ns   = ns
 
+    def is_active(self) -> bool:
+        return False
+
     def handle(self, payload: dict):
         cls  = payload.get('class', '?')
         conf = payload.get('confidence', 0)

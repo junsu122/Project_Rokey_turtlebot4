@@ -28,6 +28,12 @@ def ros_event_topic(robot_id: str) -> str:
     return f"/{robot_id}/vision/alert"
 
 
+def ros_detection_topic(robot_id: str) -> str:
+    return f"/{robot_id}/detection/info"
+
+
+ROS_INFORMATION_TOPIC = os.getenv("FMS_ROS_INFORMATION_TOPIC", "/information")
+
 ROS_QOS_STATUS = int(os.getenv("FMS_ROS_QOS_STATUS", "10"))
 ROS_QOS_EVENT = int(os.getenv("FMS_ROS_QOS_EVENT", "10"))
 
@@ -35,6 +41,12 @@ ROS_QOS_EVENT = int(os.getenv("FMS_ROS_QOS_EVENT", "10"))
 STATUS_TIMEOUT = float(os.getenv("FMS_STATUS_TIMEOUT", "10.0"))
 
 DB_PATH = os.getenv("FMS_DB_PATH", str(BASE_DIR / "fms.db"))
+
+# Storage backend for the ROS2 ingest pump: "sqlite" (local) or "supabase".
+BACKEND = os.getenv("FMS_BACKEND", "sqlite").lower()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+SUPABASE_TIMEOUT = float(os.getenv("SUPABASE_TIMEOUT", "8.0"))
 
 FLASK_HOST = os.getenv("FMS_FLASK_HOST", "0.0.0.0")
 FLASK_PORT = int(os.getenv("FMS_FLASK_PORT", "5000"))

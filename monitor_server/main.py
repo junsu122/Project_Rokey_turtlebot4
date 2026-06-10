@@ -14,7 +14,7 @@ import rclpy
 
 import api
 import config
-import db
+import store
 from ros_ingest import RosIngestNode
 from robot_registry import RobotRegistry
 
@@ -33,20 +33,24 @@ class MonitorServer:
         self._stopped = False
 
     def start(self) -> None:
-        db.init_db()
-        logger.info("SQLite ready (WAL): %s", config.DB_PATH)
+        store.init()
 
         rclpy.init(args=None)
         self.ros_node = RosIngestNode(self.registry)
 
-        threading.Thread(
-            target=api.run_api,
-            args=(self.registry,),
-            daemon=True,
-            name="flask-api",
-        ).start()
-
-        logger.info("monitor server ready - ROS2 ingest + dashboard API")
+        # The Supabase backend is a write-only pump; the dashboard reads straight
+        # from Supabase (Vercel), so the local Flask API is only started for the
+        # local SQLite backend.
+        if config.BACKEND == "supabase":
+            logger.info("monitor server ready - ROS2 ingest -> Supabase (no local API)")
+        else:
+            threading.Thread(
+                target=api.run_api,
+                args=(self.registry,),
+                daemon=True,
+                name="flask-api",
+            ).start()
+            logger.info("monitor server ready - ROS2 ingest + dashboard API")
 
     def stop(self) -> None:
         if self._stopped:
@@ -54,11 +58,14 @@ class MonitorServer:
         self._stopped = True
         logger.info("monitor server shutting down")
         if self.ros_node is not None:
-            self.ros_node.destroy_node()
+            try:
+                self.ros_node.destroy_node()
+            except Exception as exc:  # rclpy destroy_node can raise on teardown
+                logger.warning("ros node teardown: %s", exc)
             self.ros_node = None
         if rclpy.ok():
             rclpy.shutdown()
-        db.close()
+        store.close()
 
     def run_forever(self) -> None:
         self.start()

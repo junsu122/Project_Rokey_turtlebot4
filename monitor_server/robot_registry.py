@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 
 import config
-import db
+import store
 from states import ROBOT_STATES
 
 
@@ -32,40 +32,26 @@ class RobotRegistry:
         task_id = payload.get("current_task_id")
         task_status = payload.get("task_status")
         error_code = payload.get("error_code")
-        now = db.utc_now_iso()
+        now = store.utc_now()
         floor = config.ROBOTS.get(robot_id, {}).get("floor")
 
-        prev = db.query_one(
-            "SELECT state, task_status FROM latest_robot_status WHERE robot_id=?",
-            (robot_id,),
-        )
+        prev = store.get_prev_status(robot_id)
         prev_state = prev.get("state") if prev else None
         prev_task_status = prev.get("task_status") if prev else None
 
-        db.execute(
-            "INSERT INTO latest_robot_status"
-            "(robot_id, floor, state, battery, x, y, theta, current_task_id, "
-            "task_status, error_code, last_seen) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(robot_id) DO UPDATE SET "
-            "floor=excluded.floor, state=excluded.state, battery=excluded.battery, "
-            "x=excluded.x, y=excluded.y, theta=excluded.theta, "
-            "current_task_id=excluded.current_task_id, task_status=excluded.task_status, "
-            "error_code=excluded.error_code, last_seen=excluded.last_seen",
-            (
-                robot_id,
-                floor,
-                state,
-                battery,
-                pose.get("x"),
-                pose.get("y"),
-                pose.get("theta"),
-                task_id,
-                task_status,
-                error_code,
-                now,
-            ),
-        )
+        store.upsert_robot_status({
+            "robot_id": robot_id,
+            "floor": floor,
+            "state": state,
+            "battery": battery,
+            "x": pose.get("x"),
+            "y": pose.get("y"),
+            "theta": pose.get("theta"),
+            "current_task_id": task_id,
+            "task_status": task_status,
+            "error_code": error_code,
+            "last_seen": now,
+        })
 
         changed = (
             prev is None
@@ -73,22 +59,17 @@ class RobotRegistry:
             or prev_task_status != task_status
         )
         if changed:
-            db.execute(
-                "INSERT INTO robot_status_log"
-                "(robot_id, state, prev_state, task_id, task_status, battery, x, y, at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    robot_id,
-                    state,
-                    prev_state,
-                    task_id,
-                    task_status,
-                    battery,
-                    pose.get("x"),
-                    pose.get("y"),
-                    now,
-                ),
-            )
+            store.append_status_log({
+                "robot_id": robot_id,
+                "state": state,
+                "prev_state": prev_state,
+                "task_id": task_id,
+                "task_status": task_status,
+                "battery": battery,
+                "x": pose.get("x"),
+                "y": pose.get("y"),
+                "at": now,
+            })
             if prev_state != state:
                 logger.info("[%s] state %s -> %s (task=%s/%s)",
                             robot_id, prev_state, state, task_id, task_status)

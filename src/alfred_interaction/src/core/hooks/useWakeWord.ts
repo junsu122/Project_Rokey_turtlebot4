@@ -27,6 +27,10 @@ interface SpeechRecognitionEventLike {
   resultIndex: number;
   results: SpeechResultList;
 }
+interface SpeechRecognitionErrorEventLike {
+  error: string;
+  message?: string;
+}
 interface SpeechRecognitionLike {
   lang: string;
   continuous: boolean;
@@ -36,7 +40,7 @@ interface SpeechRecognitionLike {
   abort(): void;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
 }
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
@@ -105,7 +109,11 @@ export function useWakeWord({
         next.onresult = (event) => {
           for (let i = event.resultIndex; i < event.results.length; i += 1) {
             if (triggered) return;
-            if (matched(event.results[i][0].transcript)) {
+            const transcript = event.results[i][0].transcript;
+            // DIAGNOSTIC: what the cloud STT actually heard (catches the
+            // "heard '알프레도' but didn't match '알프레드'" case).
+            console.debug('[wakeword] heard:', JSON.stringify(transcript), 'final?', event.results[i].isFinal);
+            if (matched(transcript)) {
               triggered = true;
               stopped = true;
               try {
@@ -113,18 +121,27 @@ export function useWakeWord({
               } catch {
                 /* ignore */
               }
+              console.info('[wakeword] MATCH →', JSON.stringify(transcript));
               onWakeRef.current();
               return;
             }
           }
         };
-        next.onerror = () => {
-          /* recognition restarts in onend */
+        next.onerror = (event) => {
+          // DIAGNOSTIC: the reason it's silent. Common codes:
+          //   network            → no internet (Web Speech is a Google cloud service)
+          //   not-allowed        → mic blocked (insecure http://IP context or denied)
+          //   service-not-allowed→ STT service blocked / unsupported origin
+          //   audio-capture      → no mic / mic held by another app (e.g. Soniox)
+          //   no-speech/aborted  → silence or restart churn (often benign)
+          console.warn('[wakeword] error:', event.error, event.message ?? '');
         };
         next.onend = () => {
+          console.debug('[wakeword] onend (restart in 400ms)', { stopped });
           if (!stopped) window.setTimeout(startRec, 400);
         };
         next.start();
+        console.debug('[wakeword] start; lang =', next.lang, 'phrases =', phrasesRef.current);
         rec = next;
       } catch {
         // start() can throw (mic not yet permitted) — retry shortly.

@@ -15,13 +15,14 @@ event_handler_robot4:
   ros__parameters:
     namespace: /robot4
     emergency_exit: gate       # gate | gate_b
+    has_patrol: false          # robot4는 순찰 없음 → patrol_stopped 없이 바로 이동
 
 video_sender_robot2:
   ros__parameters:
-    image_topic: /robot2/detection/image
-    http_port: 8081
+    namespace: /robot2/oakd/rgb/image_raw/compressed
+    signal_port: 8081
 
 video_sender_robot4:
   ros__parameters:
-    image_topic: /robot4/detection/image
-    http_port: 8082
+    namespace: /robot4/oakd/rgb/image_raw/compressed
+    signal_port: 8082

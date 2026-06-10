@@ -9,6 +9,11 @@ import {
   RosBridgeDetectionService,
   type DetectionService,
 } from './detection';
+import {
+  MockRobotStateService,
+  RosBridgeRobotStateService,
+  type RobotStateService,
+} from './robot-state';
 import { WebSpeechTtsService } from './tts';
 import type { Services } from './types';
 
@@ -51,8 +56,14 @@ export function createDefaultServices(): Services {
   //   • Detections   — robot → /detection   (subscribe, requirement ver03)
   // With no URL (or mocks forced), both fall back to console/no-op so the UI
   // runs offline. See env.rosbridgeUrl / .env.
+  // Per-robot UI status topic (IF-02). Default derived from this kiosk's robot id
+  // (e.g. /robot2/ui_state); override with VITE_ROBOT_STATE_TOPIC.
+  const robotStateTopic =
+    env.robotStateTopic || `/${kioskConfig.robotId}/ui_state`;
+
   let fms: FmsService;
   let detection: DetectionService;
+  let robotState: RobotStateService;
   if (!env.useMocks && env.rosbridgeUrl) {
     const bridge = new RosBridgeClient({ url: env.rosbridgeUrl });
     bridge.connect();
@@ -61,13 +72,15 @@ export function createDefaultServices(): Services {
     if (env.rosInfoMsgType) bridge.advertise(env.rosInfoTopic, env.rosInfoMsgType);
     fms = new RosBridgeFmsService(bridge, env.rosInfoTopic, env.rosInfoMsgType);
     detection = new RosBridgeDetectionService(bridge, env.detectionTopics);
+    robotState = new RosBridgeRobotStateService(bridge, robotStateTopic);
   } else {
     fms = new MockFmsService(env.rosInfoTopic, env.rosInfoMsgType);
     detection = new MockDetectionService();
+    robotState = new MockRobotStateService();
   }
 
   // Browser-native TTS — free/offline, no key (VI mode + emergency alerts).
   const tts = new WebSpeechTtsService();
 
-  return { ros, stt, llm, navigation, fms, detection, tts };
+  return { ros, stt, llm, navigation, fms, detection, robotState, tts };
 }

@@ -178,8 +178,11 @@ class WebRequestNode(Node):
 
     def try_finish(self):
         if self.escort_stage == "DONE" and self.continue_stage == "DONE":
-            self.get_logger().info("Relay complete — both robots docked. Sending robot2 back to patrol.")
-            self.resume_patrol_pub.publish(Empty())
+            self.get_logger().info("Relay complete.")
+            if self.escort_robot is not None:
+                # robot2가 관여한 경우(1F→1F / 1F→2F)만 순찰 재개 신호 전송
+                self.get_logger().info("Sending robot2 back to patrol.")
+                self.resume_patrol_pub.publish(Empty())
             self.reset()
 
     # ---------- /information handling ----------
@@ -213,23 +216,45 @@ class WebRequestNode(Node):
         self.stop_pub.publish(Empty())
 
     def handle_escort(self, payload):
-        if self.state != "AWAITING_DESTINATION":
-            self.get_logger().warn(
-                "ESCORT received but robot2 hasn't confirmed a patrol stop yet "
-                "(send STOP first). Ignoring."
-            )
-            return
-
         poi_id = payload.get('destination', {}).get('poi_id')
         if poi_id not in LOCATIONS:
             self.get_logger().warn(f"Unknown destination poi_id '{poi_id}'. "
                                    f"Available: {list(LOCATIONS.keys())}")
             return
 
-        self.get_logger().info(
-            f"ESCORT request {payload.get('request_id', '?')} received — destination '{poi_id}'"
-        )
-        self.start_relay(poi_id)
+        goal = LOCATIONS[poi_id]
+
+        if self.state == "AWAITING_DESTINATION":
+            # robot2 정지 후 → 1F→1F 또는 1F→2F
+            self.get_logger().info(
+                f"ESCORT request {payload.get('request_id', '?')} received — destination '{poi_id}'"
+            )
+            self.start_relay(poi_id)
+
+        elif self.state == "IDLE" and goal["robot"] == "robot4":
+            # robot2 정지 없이 2F 목적지 → 2F→2F (robot4 단독)
+            self.get_logger().info(
+                f"ESCORT 2F→2F request {payload.get('request_id', '?')} — destination '{poi_id}'"
+            )
+            self.start_2f_escort(poi_id)
+
+        else:
+            self.get_logger().warn(
+                f"ESCORT received in unexpected state '{self.state}' "
+                f"for destination '{poi_id}'. Ignoring."
+            )
+
+    def start_2f_escort(self, goal_name):
+        """2F→2F: robot4 단독 안내. robot2 정지/복귀 없음."""
+        goal = LOCATIONS[goal_name]
+        self.escort_robot   = None       # robot2 미관여
+        self.continue_robot = "robot4"
+        self.final_goal_pose = goal["pose"]
+        self.escort_stage   = "DONE"     # robot2 없음 → 처음부터 DONE
+        self.continue_stage = "TO_GOAL"
+        self.state = "RETURNING"
+        self.send_undock_then_goal("robot4", goal["pose"])
+        self.get_logger().info(f"2F→2F: robot4 → {goal_name}")
 
     def start_relay(self, goal_name):
         goal = LOCATIONS[goal_name]
@@ -288,32 +313,29 @@ class WebRequestNode(Node):
                 self.wait_timer = self.create_timer(3.0, self.on_wait_complete)
 
         elif self.state == "RETURNING":
-            if robot == self.escort_robot and self.escort_stage == "TO_GOAL":
-                # Same-floor case: robot2 reached the destination directly — send it home.
-                self.escort_stage = "TO_HOME"
-                home_name = HOME[self.escort_robot]
-                self.send_goal(self.escort_robot, LOCATIONS[home_name]["pose"])
-                self.get_logger().info(f"robot2 reached destination, returning to {home_name}")
+            if self.escort_robot and robot == self.escort_robot:
+                if self.escort_stage == "TO_GOAL":
+                    # 1F→1F: robot2 목적지 도착 → 귀환
+                    self.escort_stage = "TO_HOME"
+                    home_name = HOME[self.escort_robot]
+                    self.send_goal(self.escort_robot, LOCATIONS[home_name]["pose"])
+                    self.get_logger().info(f"robot2 reached destination, returning to {home_name}")
+                elif self.escort_stage == "TO_HOME":
+                    self.escort_stage = "DONE"
+                    self.try_finish()
 
-            elif robot == self.escort_robot and self.escort_stage == "TO_HOME":
-                self.send_dock(
-                    self.escort_robot,
-                    lambda r=self.escort_robot: self.mark_docked_and_try_finish(r)
-                )
-
-            elif robot == self.continue_robot and self.continue_stage == "TO_GOAL":
-                self.continue_stage = "TO_HOME"
-                home_name = HOME[self.continue_robot]
-                self.send_goal(self.continue_robot, LOCATIONS[home_name]["pose"])
-                self.get_logger().info(
-                    f"{self.continue_robot} reached destination, returning to {home_name}"
-                )
-
-            elif robot == self.continue_robot and self.continue_stage == "TO_HOME":
-                self.send_dock(
-                    self.continue_robot,
-                    lambda r=self.continue_robot: self.mark_docked_and_try_finish(r)
-                )
+            elif self.continue_robot and robot == self.continue_robot:
+                if self.continue_stage == "TO_GOAL":
+                    # 2F→2F / 1F→2F: robot4 목적지 도착 → 귀환
+                    self.continue_stage = "TO_HOME"
+                    home_name = HOME[self.continue_robot]
+                    self.send_goal(self.continue_robot, LOCATIONS[home_name]["pose"])
+                    self.get_logger().info(
+                        f"{self.continue_robot} reached destination, returning to {home_name}"
+                    )
+                elif self.continue_stage == "TO_HOME":
+                    self.continue_stage = "DONE"
+                    self.try_finish()
 
     def on_wait_complete(self):
         self.wait_timer.cancel()

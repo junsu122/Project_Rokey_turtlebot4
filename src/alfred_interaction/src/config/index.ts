@@ -37,6 +37,11 @@ export function getFacilityOrThrow(facilityId: string): Facility {
   return facility;
 }
 
+/** Facility by its FMS POI id (IF-01/IF-02 `poi_id`), e.g. 'WC' → 화장실. */
+export function getFacilityByPoiId(poiId: string): Facility | undefined {
+  return facilities.find((f) => f.poiId === poiId);
+}
+
 export function facilitiesOnFloor(floorId: string): Facility[] {
   return facilities.filter((f) => f.floorId === floorId);
 }

@@ -11,12 +11,13 @@ import styles from './GuidingScreen.module.css';
 
 /**
  * Requirement #7 / ver02 §2.2: while escorting, the kiosk shows the smiling face
- * with the "시설 안내중" caption. The subtitle reflects same-floor vs the
- * cross-floor handoff (#6). On arrival it briefly celebrates, then returns to
- * patrol (#10). In visually-impaired mode the trip and arrival are spoken (TTS).
+ * with the "시설 안내중" caption. Driven by EITHER the local escort (user picked a
+ * destination on the kiosk → rich `session` with cross-floor handoff #6) OR an
+ * inbound robot escort (IF-02 ESCORT_1F/2F → `escort` with destination + progress).
+ * In visually-impaired mode the trip and arrival are spoken (TTS).
  */
 export function GuidingScreen() {
-  const { session, mode } = useKioskState();
+  const { session, escort, mode } = useKioskState();
   const strings = useStrings();
   const { language } = useLanguage();
   const { cancelGuidance } = useGuidance();
@@ -26,14 +27,31 @@ export function GuidingScreen() {
 
   const arrived = session?.progress.phase === 'arrived';
   const vi = mode === 'visually_impaired';
-  const hasSession = !!session;
+  const hasContent = !!session || !!escort;
+  // Only a local (user-initiated) escort can be cancelled from the kiosk; the
+  // robot owns its own escort.
+  const canCancel = !!session && !arrived;
 
-  // VI mode: announce the trip once on entry, and the arrival when reached.
+  const caption = arrived ? strings.guiding.arrived : strings.guiding.caption;
+  // Subtitle: rich from the local session, else the robot-provided destination.
+  const subtitle = session
+    ? arrived
+      ? undefined
+      : describe(session, strings, language)
+    : escort?.destinationName
+      ? strings.guiding.toDestination(escort.destinationName)
+      : undefined;
+  const ratio = Math.min(
+    1,
+    Math.max(0, session ? session.progress.ratio : escort?.ratio ?? 0),
+  );
+
+  // VI mode: announce the trip once on entry (session subtitle or robot name).
   useEffect(() => {
-    if (!session || announcedRef.current) return;
+    if (!hasContent || announcedRef.current) return;
     announcedRef.current = true;
-    speak(describe(session, strings, language));
-  }, [session, speak, strings, language]);
+    speak(subtitle ?? caption);
+  }, [hasContent, subtitle, caption, speak]);
 
   useEffect(() => {
     if (arrived && !arrivedAnnouncedRef.current) {
@@ -42,21 +60,16 @@ export function GuidingScreen() {
     }
   }, [arrived, speak, strings]);
 
-  // VI mode: repeating locator beep so the user can find / follow this Alfred
-  // while it escorts (stops on arrival). Booleans-only deps so progress ticks
-  // don't restart the interval.
+  // VI mode: repeating locator beep while escorting (stops on arrival). Booleans-
+  // only deps so progress ticks don't restart the interval.
   useEffect(() => {
-    if (!vi || !hasSession || arrived) return;
+    if (!vi || !hasContent || arrived) return;
     playBeep();
     const id = window.setInterval(playBeep, 1000);
     return () => window.clearInterval(id);
-  }, [vi, hasSession, arrived]);
+  }, [vi, hasContent, arrived]);
 
-  if (!session) return null;
-
-  const caption = arrived ? strings.guiding.arrived : strings.guiding.caption;
-  const subtitle = arrived ? undefined : describe(session, strings, language);
-  const ratio = Math.min(1, Math.max(0, session.progress.ratio));
+  if (!hasContent) return null;
 
   return (
     <ScreenFrame tone="dark">
@@ -70,7 +83,7 @@ export function GuidingScreen() {
         </div>
       </div>
 
-      {!arrived && (
+      {canCancel && (
         <button type="button" className={styles.cancel} onClick={cancelGuidance}>
           {strings.guiding.cancel}
         </button>

@@ -1,0 +1,89 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  text-align: center;
+  width: 100%;
+}
+
+.face {
+  width: var(--font-face);
+  height: auto;
+  max-width: 86vw;
+  filter: drop-shadow(0 1.2rem 2.6rem rgba(0, 0, 0, 0.45));
+}
+
+/* Enlarged for the patrol screen (taller than the old round face). */
+.faceXl {
+  width: clamp(14rem, 46vh, 32rem);
+}
+
+/* The butler breathes gently; the spotlight (a sibling) stays put. */
+.figure {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: breathe 5.4s var(--ease-in-out) infinite;
+}
+
+.glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: glow-pulse 6.5s var(--ease-in-out) infinite;
+}
+
+.eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 6s var(--ease-in-out) infinite;
+}
+
+.caption {
+  font-size: var(--font-xl);
+  font-weight: var(--weight-black);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.subtitle {
+  font-size: var(--font-md);
+  font-weight: var(--weight-medium);
+  opacity: 0.86;
+  max-width: 24ch;
+  line-height: 1.35;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-1.5%) scale(1.012);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes blink {
+  0%,
+  90%,
+  100% {
+    transform: scaleY(1);
+  }
+  94%,
+  96% {
+    transform: scaleY(0.1);
+  }
+}

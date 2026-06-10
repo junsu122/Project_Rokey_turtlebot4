@@ -9,7 +9,7 @@
 //   수신      → {"op":"publish","topic":"/robot2/robot_state","msg":{ ...RobotState... }}
 
 const URL = 'ws://192.168.107.81:9090';
-const TOPIC = '/robot2/robot_state';
+const TOPIC = '/escort_state';
 const TYPE = 'alfred_interfaces/msg/RobotState';
 
 console.log(`[connecting] ${URL} ...`);

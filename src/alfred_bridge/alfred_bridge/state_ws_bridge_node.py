@@ -191,6 +191,13 @@ class StateWsBridgeNode(Node):
         self.create_subscription(String, "/robot4/nav_status", self._cb_r4, 10)
         self.create_subscription(RobotState, "/escort_state", self._cb_escort, 10)
 
+        for robot in ("robot2", "robot4"):
+            self.create_subscription(
+                String, f"/{robot}/detection/info",
+                lambda msg, r=robot: self._cb_detection(msg, r),
+                10,
+            )
+
         self.get_logger().info(f"state_ws_bridge: ws://{host}:{port} 에서 web 연결 대기")
 
     # ── ROS 콜백 ──────────────────────────────────────────────────────────────
@@ -200,6 +207,16 @@ class StateWsBridgeNode(Node):
 
     def _cb_r4(self, msg: String) -> None:
         self._push_if_changed("/robot4/nav_status", msg.data, {"data": msg.data})
+
+    def _cb_detection(self, msg: String, robot: str) -> None:
+        try:
+            payload = json.loads(msg.data)
+        except (TypeError, ValueError) as err:
+            self.get_logger().warn(f"[/{robot}/detection/info] JSON 파싱 실패: {err}")
+            return
+        topic = f"/{robot}/detection/info"
+        self.get_logger().info(f"[{topic}] {payload.get('event_type')} → web push")
+        self._server.broadcast_json({"op": "publish", "topic": topic, "msg": payload})
 
     def _cb_escort(self, msg: RobotState) -> None:
         self._push_if_changed("/escort_state", msg.state, {

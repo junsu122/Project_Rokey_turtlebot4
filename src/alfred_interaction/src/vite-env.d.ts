@@ -19,6 +19,8 @@ interface ImportMetaEnv {
   readonly VITE_ROSBRIDGE_URL?: string;
   /** ROS topic(s) for YOLO emergency detections, comma-separated. Default '/detection'. */
   readonly VITE_DETECTION_TOPIC?: string;
+  /** ROS topic for this robot's UI status. Empty = derived '/<robotId>/ui_state'. */
+  readonly VITE_ROBOT_STATE_TOPIC?: string;
   /** ROS topic for IF-01 customer requests. Default '/information'. */
   readonly VITE_ROS_INFO_TOPIC?: string;
   /** ROS message type to advertise for the info topic. Empty = publish only. */

@@ -138,6 +138,23 @@ class Robot2Monitor(Node):
             status_msg.data = 'patrol_stopped'
         self.status_publisher.publish(status_msg)
 
+#################################준수 추가코드#################################
+    def publish_docking(self):
+        status_msg = String()
+        status_msg.data = 'docking'
+        self.status_publisher.publish(status_msg)
+
+    def publish_undocking(self):
+        status_msg = String()
+        status_msg.data = 'undocking'
+        self.status_publisher.publish(status_msg)
+
+    def publish_patrol_resumed(self):
+        status_msg = String()
+        status_msg.data = 'patrol_resumed'
+        self.status_publisher.publish(status_msg)
+################################################################################
+
     def thread_function(self):
         executor = SingleThreadedExecutor()
         executor.add_node(self)
@@ -191,6 +208,7 @@ def run_patrol(navigator, monitor, lock, goal_pose):
             elif battery_percent < BATTERY_LOW:
                 # Go near the dock
                 navigator.info('Docking for charge')
+                monitor.publish_docking() ## 준수 추가
                 navigator.startToPose(navigator.getPoseStamped([-1.0, 1.0],
                                       TurtleBot4Directions.EAST))
                 navigator.dock()
@@ -213,7 +231,9 @@ def run_patrol(navigator, monitor, lock, goal_pose):
                         navigator.info(f'Battery is at {(battery_percent*100):.2f}% charge')
 
                 # Undock
+                monitor.publish_undocking() ## 준수 추가
                 navigator.undock()
+                monitor.publish_patrol_resumed() ## 준수 추가
                 position_index = 0
 
             else:
@@ -328,8 +348,12 @@ def main(args=None):
     # Wait for Nav2
     navigator.waitUntilNav2Active()
 
-    # Undock
-    navigator.undock()
+    # Undock only when needed. Calling undock while already undocked can make
+    # the Create base/action server behave badly on some runs.
+    if navigator.getDockedStatus():
+        navigator.undock()
+    else:
+        navigator.info('Robot is already undocked. Starting patrol.')
 
     # Prepare patrol waypoints
     goal_pose = []
@@ -359,8 +383,8 @@ def main(args=None):
             monitor.escort_goal_name = None
             monitor.resume_requested = False
 
-        navigator.info('Relay finished — undocking to resume patrol.')
-        navigator.undock()
+        monitor.publish_patrol_resumed()
+        navigator.info('Relay finished — resuming patrol.')
 
     monitor.destroy_node()
     rclpy.shutdown()

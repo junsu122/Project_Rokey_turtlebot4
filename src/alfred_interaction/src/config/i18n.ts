@@ -56,6 +56,15 @@ const ko: AppStrings = {
     arrived: '도착했어요!',
     cancel: '안내 취소',
   },
+  charging: {
+    caption: '충전 중이에요 🔌',
+    subtitle: '충전이 끝나면 다시 순찰할게요',
+  },
+  waiting: {
+    caption: '잠시만 기다려 주세요',
+    subtitle: '곧 안내를 이어갈게요',
+    transfer: (toFloor) => `이 층 안내가 끝났어요 · ${toFloor}로 이동해 주세요`,
+  },
   staff: {
     title: '직원이 오고 있습니다',
     description: '잠시만 기다려 주세요.',
@@ -115,6 +124,15 @@ const en: AppStrings = {
     handoff: (toFloor) => `The ${toFloor} robot will take over from here`,
     arrived: 'We have arrived!',
     cancel: 'Cancel',
+  },
+  charging: {
+    caption: 'Charging 🔌',
+    subtitle: "I'll resume patrol once charged",
+  },
+  waiting: {
+    caption: 'Please wait a moment',
+    subtitle: "I'll continue shortly",
+    transfer: (toFloor) => `Done on this floor · please head to ${toFloor}`,
   },
   staff: {
     title: 'A staff member is on the way',
@@ -176,6 +194,15 @@ const ja: AppStrings = {
     arrived: '到着しました！',
     cancel: '案内を中止',
   },
+  charging: {
+    caption: '充電中です 🔌',
+    subtitle: '充電が終わったら巡回を再開します',
+  },
+  waiting: {
+    caption: '少々お待ちください',
+    subtitle: 'まもなく案内を続けます',
+    transfer: (toFloor) => `この階のご案内は終了 · ${toFloor}へお進みください`,
+  },
   staff: {
     title: '係員が向かっています',
     description: '少々お待ちください。',
@@ -233,6 +260,15 @@ const zh: AppStrings = {
     handoff: (toFloor) => `${toFloor}的机器人将继续为您带路`,
     arrived: '已到达！',
     cancel: '取消向导',
+  },
+  charging: {
+    caption: '正在充电 🔌',
+    subtitle: '充电完成后将继续巡逻',
+  },
+  waiting: {
+    caption: '请稍候',
+    subtitle: '马上继续为您带路',
+    transfer: (toFloor) => `本层向导结束 · 请前往${toFloor}`,
   },
   staff: {
     title: '工作人员正在赶来',

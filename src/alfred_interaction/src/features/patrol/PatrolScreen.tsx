@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RobotFace, ScreenFrame } from '@/components';
+import { ButlerFace, ScreenFrame } from '@/components';
 import { floorLevel, kioskConfig, useStrings } from '@/config';
 import { isWakeWordSupported, useAnyInput, useWakeWord } from '@/core/hooks';
 import { useLanguage } from '@/core/i18n';
@@ -16,7 +16,7 @@ import styles from './PatrolScreen.module.css';
 const WAKE_WORDS = ['hello alfred', '헬로 알프레드', 'alfred', '알프레드'];
 
 const ANNOUNCE_DELAY_MS = 2000; // first prompt shortly after entering patrol
-const ANNOUNCE_INTERVAL_MS = 20000; // repeat period
+const ANNOUNCE_INTERVAL_MS = 60000; // repeat period
 const WAKE_GRACE_MS = 700; // keep wake word muted briefly after the prompt
 
 /**
@@ -101,7 +101,7 @@ export function PatrolScreen() {
   return (
     <ScreenFrame tone="dark" className={styles.screen}>
       <div className={styles.body}>
-        <RobotFace size="xl" />
+        <ButlerFace size="xl" />
       </div>
       <div className={styles.hints}>
         <p className={styles.hint}>{strings.patrol.hint}</p>

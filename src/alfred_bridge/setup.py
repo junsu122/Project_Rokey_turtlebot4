@@ -30,6 +30,7 @@ setup(
             'fake_robot = alfred_bridge.fake_robot:main',
             'escort_state_bridge_node = alfred_bridge.escort_state_bridge_node:main',
             'state_ws_bridge_node = alfred_bridge.state_ws_bridge_node:main',
+            'robot_state_publisher_node = alfred_bridge.robot_state_publisher_node:main',
         ],
     },
 )

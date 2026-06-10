@@ -73,11 +73,17 @@ export const env = {
     .map((t) => t.trim())
     .filter(Boolean),
   /**
+   * ROS topic carrying THIS robot's UI status (IF-02: ESCORT_1F / WAITING_1F /
+   * DOCKING / PATROL …). Empty → derived from the robot id in createServices
+   * (`/<robotId>/ui_state`, e.g. /robot2/ui_state). Set to override.
+   */
+  robotStateTopic: str(import.meta.env.VITE_ROBOT_STATE_TOPIC, ''),
+  /**
    * Mic noise-gate threshold in dBFS — input quieter than this is muted before
    * STT, cutting far/background voices. Lower = more permissive (e.g. -90 ≈ off);
    * raise toward -35 to gate more aggressively. Tune per mic/room.
    */
-  micGateDb: num(import.meta.env.VITE_MIC_GATE_DB, -45),
+  micGateDb: num(import.meta.env.VITE_MIC_GATE_DB, -30),
   /** Log measured mic level for tuning the gate (defaults on in dev builds). */
   micGateDebug:
     import.meta.env.VITE_MIC_GATE_DEBUG !== undefined

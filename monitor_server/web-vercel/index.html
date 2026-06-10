@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitoring Server</title>
+<style>
+  :root{
+    --bg:#111827;--panel:#182235;--panel2:#202d44;--line:#314057;
+    --text:#e8edf6;--muted:#93a4bc;--blue:#60a5fa;--green:#34d399;
+    --amber:#fbbf24;--red:#f87171;--purple:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,"Noto Sans KR",sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  h1{font-size:18px;margin:0;white-space:nowrap}.sub{font-size:12px;color:var(--muted)}
+  .tabs{display:flex;gap:6px;overflow-x:auto;margin-left:10px}
+  .tab{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:7px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+  .tab:hover{color:var(--text);border-color:var(--blue)}.tab.on{background:var(--blue);border-color:var(--blue);color:#07111f}
+  .spacer{flex:1}.logout{color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:5px 12px;border-radius:6px;white-space:nowrap}
+  main{padding:18px;max-width:1540px;margin:0 auto}.tabpanel{display:none}.tabpanel.on{display:block}
+  .grid{display:grid;gap:16px}.kpi-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .layout{grid-template-columns:minmax(0,1fr) minmax(320px,440px);align-items:start}
+  .two{grid-template-columns:repeat(2,minmax(0,1fr))}.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media(max-width:1120px){.layout,.two,.three{grid-template-columns:1fr}header{align-items:flex-start;flex-wrap:wrap}.spacer{display:none}}
+  section,.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  section{margin-bottom:16px}h2{font-size:13px;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em}
+  .kpi .label{font-size:12px;color:var(--muted)}.kpi .value{font-size:30px;font-weight:800;margin-top:4px;line-height:1.1}
+  .kpi .foot{font-size:12px;color:var(--muted);margin-top:6px}.kpi.warn{border-color:rgba(251,191,36,.5)}.kpi.danger{border-color:rgba(248,113,113,.55)}
+  .robot{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px}
+  .robot.offline{border-color:rgba(248,113,113,.45)}.row{display:flex;align-items:center;gap:8px;justify-content:space-between}.muted{color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700;color:#0b1020}
+  .gray{background:#94a3b8}.blue{background:var(--blue)}.green{background:var(--green)}.amber{background:var(--amber)}.red{background:var(--red)}.purple{background:var(--purple)}
+  .pill{font-size:11px;padding:2px 8px;border-radius:999px}.onpill{background:rgba(52,211,153,.18);color:#8ff0c6}.offpill{background:rgba(248,113,113,.18);color:#ffaaa9}
+  .floor-pill{font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(96,165,250,.14);color:#9ecaff;border:1px solid rgba(96,165,250,.28)}
+  table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid var(--line);padding:7px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:600}
+  .map3d{width:100%;height:calc(100vh - 305px);min-height:300px;border:1px solid var(--line);border-radius:10px;background:#0a1220}
+  .search{display:flex;gap:8px;margin-bottom:10px}.search input,.search select{background:#0e1524;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px}.search input{flex:1}
+  .btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:7px;padding:7px 10px;cursor:pointer}.btn:hover{border-color:var(--blue)}
+  .empty{color:var(--muted);padding:8px 0}.mono{font-family:ui-monospace,monospace}.bar{height:8px;background:#0e1524;border-radius:999px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--blue)}
+  /* 긴급 알람 (개요) — 활성 이벤트 발생 시 표시, 조치완료 시 사라짐 */
+  .alarmwrap{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+  #emergencyAlarms:empty{display:none}
+  .alarm-card{display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:12px;
+    background:linear-gradient(90deg,rgba(248,113,113,.20),rgba(248,113,113,.05));
+    border:1px solid rgba(248,113,113,.6);animation:alarmpulse 1.4s infinite}
+  .alarm-card.warn{background:linear-gradient(90deg,rgba(251,191,36,.20),rgba(251,191,36,.05));border-color:rgba(251,191,36,.6)}
+  @keyframes alarmpulse{0%,100%{box-shadow:0 0 0 1px rgba(248,113,113,.18)}50%{box-shadow:0 0 22px rgba(248,113,113,.45)}}
+  .alarm-card .emo{font-size:26px;line-height:1}
+  .alarm-card .info{flex:1;min-width:0}
+  .alarm-card .ttl{font-size:15px;font-weight:700}
+  .alarm-card .meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .alarm-card .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .ebtn{display:inline-flex;align-items:center;gap:5px;text-decoration:none;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .ebtn:hover{filter:brightness(1.12)}
+  .ebtn.call{border-color:rgba(248,113,113,.65);color:#ffd9dd;background:rgba(248,113,113,.12)}
+  .ebtn.sec{border-color:rgba(96,165,250,.65);color:#bfe3ff;background:rgba(96,165,250,.12)}
+  .ebtn.done{background:var(--blue);border-color:var(--blue);color:#07111f;font-weight:700}
+  /* 영상 (WebRTC) — 로봇↔브라우저 P2P 수신 */
+  .video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:16px}
+  .vcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .vcard .vtop{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .vcard .vid-name{font-weight:700}
+  .vstage{position:relative;width:100%;aspect-ratio:16/9;background:#0a0e16;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .vstage video{width:100%;height:100%;object-fit:contain;display:block;background:#0a0e16}
+  .vstate{margin-left:auto;font-size:12px;font-weight:700;padding:2px 9px;border-radius:10px;background:var(--bg);color:var(--muted)}
+  .vstate.connected{color:var(--green)} .vstate.connecting{color:var(--amber)} .vstate.failed{color:var(--red)}
+  .vbtns{display:flex;gap:8px;margin-top:10px}
+  .vbtn{background:var(--blue);color:#07111f;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700}
+  .vbtn.off{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:400}
+  .vbtn:disabled{opacity:.5;cursor:not-allowed}
+  .vbtn:hover{filter:brightness(1.1)}
+  .vmeta{font-size:11px;color:var(--muted);margin-top:8px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-config.js"></script>
+<style>
+  #loginOverlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+    background:rgba(8,11,18,.92)}
+  #loginOverlay.hide{display:none}
+  #loginOverlay .card{width:340px;background:#182030;border:1px solid #2b3650;border-radius:14px;
+    padding:28px 26px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  #loginOverlay h1{font-size:18px;margin:0 0 4px}
+  #loginOverlay .sub{color:#8a97b0;font-size:12px;margin-bottom:18px}
+  #loginOverlay label{display:block;font-size:12px;color:#8a97b0;margin:12px 0 6px}
+  #loginOverlay input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2b3650;
+    background:#0e1422;color:#e8edf6;font-size:14px;outline:none}
+  #loginOverlay button{width:100%;margin-top:20px;padding:11px;border:0;border-radius:8px;
+    background:#5b8def;color:#fff;font-size:14px;font-weight:700;cursor:pointer}
+  #loginErr{margin-top:12px;color:#e05a5a;font-size:12.5px;display:none}
+  #loginErr.show{display:block}
+</style>
+</head>
+<body>
+<div id="loginOverlay">
+  <form class="card" id="loginForm">
+    <h1>FMS 관제 대시보드</h1>
+    <div class="sub">다중 로봇 릴레이 에스코트 · 로그인</div>
+    <label for="loginEmail">이메일</label>
+    <input id="loginEmail" type="email" autocomplete="username" autofocus required>
+    <label for="loginPw">비밀번호</label>
+    <input id="loginPw" type="password" autocomplete="current-password" required>
+    <div id="loginErr">로그인 실패 · 이메일 또는 비밀번호 확인</div>
+    <button type="submit">로그인</button>
+  </form>
+</div>
+<header>
+  <h1>Monitoring Server</h1>
+  <span class="sub">monitoring only</span>
+  <nav class="tabs">
+    <button class="tab on" data-tab="overview">개요</button>
+    <button class="tab" data-tab="ops">운영 통계</button>
+    <button class="tab" data-tab="robots">로봇 상태</button>
+    <button class="tab" data-tab="events">이벤트</button>
+    <button class="tab" data-tab="map">3D 관제</button>
+    <button class="tab" data-tab="system">시스템</button>
+    <button class="tab" data-tab="search">검색</button>
+  </nav>
+  <span class="spacer"></span>
+  <span id="conn" class="sub">연결 중...</span>
+  <a class="logout" id="logoutBtn" href="#">로그아웃</a>
+</header>
+<main>
+  <div id="tab-overview" class="tabpanel on">
+    <div id="emergencyAlarms" class="alarmwrap"></div>
+    <div id="summaryKpis" class="grid kpi-grid"></div>
+    <div class="grid layout" style="margin-top:16px">
+      <section>
+        <h2>3D 관제 뷰</h2>
+        <iframe class="map3d" src="./viz/?norobot"></iframe>
+      </section>
+      <div>
+        <section>
+          <h2>활성 이벤트</h2>
+          <div id="overviewActiveEvents"></div>
+        </section>
+        <section>
+          <h2>로봇 상태</h2>
+          <div id="overviewRobotStatus"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-ops" class="tabpanel">
+    <section>
+      <h2>운영 통계</h2>
+      <div id="opsKpis" class="grid kpi-grid"></div>
+    </section>
+    <div class="grid two">
+      <section>
+        <h2>언어별 이용객</h2>
+        <div id="languageBreakdown"></div>
+      </section>
+      <section>
+        <h2>감지 이벤트 세부</h2>
+        <div id="eventBreakdown"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="tab-robots" class="tabpanel">
+    <div class="grid two">
+      <section>
+        <h2>로봇 현재 상태</h2>
+        <div id="robotCards"></div>
+      </section>
+      <section>
+        <h2>로봇 상태 로그</h2>
+        <div id="robotLog"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="tab-events" class="tabpanel">
+    <div class="grid two">
+      <section>
+        <h2>활성 이벤트</h2>
+        <div id="activeEvents"></div>
+      </section>
+      <section>
+        <h2>이벤트 이력</h2>
+        <div id="events"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="tab-map" class="tabpanel">
+    <section>
+      <h2>3D 관제 뷰</h2>
+      <iframe class="map3d" src="./viz/?norobot"></iframe>
+    </section>
+  </div>
+
+  <div id="tab-system" class="tabpanel">
+    <section>
+      <h2>시스템 상태</h2>
+      <div id="system"></div>
+    </section>
+  </div>
+
+  <div id="tab-search" class="tabpanel">
+    <section>
+      <h2>DB 검색</h2>
+      <div class="search">
+        <input id="q" placeholder="로봇, 상태, 이벤트 검색">
+        <select id="kind">
+          <option value="all">전체</option>
+          <option value="events">이벤트</option>
+          <option value="status">상태</option>
+        </select>
+      </div>
+      <div id="searchResult"></div>
+    </section>
+  </div>
+
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const time = v => v ? new Date(v).toLocaleString() : '-';
+let latest = {robots:[], events:[], active:[], stats:{}, sys:{}, robotLog:{log:[]}};
+
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('on'));
+    btn.classList.add('on');
+    $(`tab-${btn.dataset.tab}`).classList.add('on');
+  });
+});
+
+// ── Supabase data layer (replaces Flask /api/*) ──────────────────────
+const SB = window.SUPABASE_CONFIG || {};
+const sb = window.supabase.createClient(SB.url, SB.anonKey);
+const TIMEOUT_S = SB.statusTimeout || 10;
+async function rpc(name, params){
+  const { data, error } = await sb.rpc(name, params || {});
+  if(error) throw error;
+  return data;
+}
+function unwrap({data, error}){ if(error) throw error; return data; }
+function eventName(e){
+  const type = e.event_type || 'EVENT';
+  return e.event_class ? `${type}/${e.event_class}` : type;
+}
+function badgeForState(s){
+  if(['ERROR','EMERGENCY'].includes(s)) return 'red';
+  if(['PATROL','IDLE'].includes(s)) return 'green';
+  if(['INTERACTING','ESCORTING','RETURNING'].includes(s)) return 'blue';
+  if(['RESERVED','HANDOVER_READY','WAITING_HANDOVER'].includes(s)) return 'amber';
+  return 'gray';
+}
+function kpi(label, value, foot='', mode=''){
+  return `<div class="card kpi ${mode}"><div class="label">${label}</div><div class="value">${value}</div><div class="foot">${foot}</div></div>`;
+}
+function renderSummary(stats, sys){
+  const ev = stats.events || {}, usage = stats.usage || {}, robots = sys.robots || {};
+  const by = ev.by_type || {};
+  $('summaryKpis').innerHTML =
+    kpi('온라인 로봇', `${robots.online||0}/${robots.total||0}`, `timeout ${robots.timeout_s||0}s`) +
+    kpi('활성 이벤트', ev.active || 0, `누적 ${ev.total || 0}`, ev.active ? 'danger' : '') +
+    kpi('이용객 수', usage.passengers || 0, '사용자 UI 집계') +
+    kpi('에스코트 횟수', usage.escorts || 0, '에스코트 사용 집계') +
+    kpi('화재 / 응급 / 거수자', `${by.FIRE||0} / ${by.EMERGENCY_PATIENT||0} / ${by.SUSPICIOUS_PERSON||0}`, '이벤트 누적');
+}
+function renderOps(stats){
+  const ev = stats.events || {}, usage = stats.usage || {};
+  const by = ev.by_type || {}, cls = ev.by_class || {}, lang = usage.languages || {};
+  const suspicious = by.SUSPICIOUS_PERSON || 0;
+  $('opsKpis').innerHTML =
+    kpi('이용객 수', usage.passengers || 0, 'UI 사용 카운트') +
+    kpi('한국어', lang.ko || 0, 'language=ko') +
+    kpi('중국어', lang.zh || 0, 'language=zh') +
+    kpi('일본어', lang.ja || 0, 'language=ja') +
+    kpi('영어', lang.en || 0, 'language=en') +
+    kpi('교통 약자 수', usage.vulnerable || 0, '노약자/시각장애 등') +
+    kpi('에스코트 횟수', usage.escorts || 0, 'escort_used=true') +
+    kpi('화재 수', by.FIRE || 0, 'event_type=FIRE', by.FIRE ? 'danger' : '') +
+    kpi('긴급 환자 수', by.EMERGENCY_PATIENT || 0, 'event_type=EMERGENCY_PATIENT', by.EMERGENCY_PATIENT ? 'danger' : '') +
+    kpi('거수자 수', suspicious, `gun ${cls.gun||0} · knife ${cls.knife||0}`, suspicious ? 'warn' : '');
+
+  const langRows = [['ko','한국어'],['zh','중국어'],['ja','일본어'],['en','영어'],['etc','기타']];
+  const lmax = Math.max(1, ...langRows.map(([k])=>lang[k]||0));
+  $('languageBreakdown').innerHTML = `<table><tr><th>언어</th><th>건수</th><th>비율</th></tr>` +
+    langRows.map(([code,name])=>`<tr><td>${name}</td><td>${lang[code]||0}</td><td><div class="bar"><i style="width:${((lang[code]||0)/lmax*100).toFixed(1)}%"></i></div></td></tr>`).join('') +
+    `</table>`;
+
+  const eventRows = [
+    ['FIRE','화재'],['EMERGENCY_PATIENT','긴급 환자'],['SUSPICIOUS_PERSON','거수자'],['LOST_ITEM','분실물']
+  ];
+  $('eventBreakdown').innerHTML = `<table><tr><th>이벤트</th><th>건수</th><th>class</th></tr>` +
+    eventRows.map(([code,name])=>`<tr><td>${name}</td><td>${by[code]||0}</td><td class="muted">${Object.entries(cls).map(([k,v])=>`${esc(k)} ${v}`).join(' · ') || '-'}</td></tr>`).join('') +
+    `</table>`;
+}
+function renderRobotCards(robots){
+  const html = robots.length ? robots.map(r=>{
+    const p = r.pose || {};
+    const floor = r.floor ? `${r.floor}층` : '층 정보 없음';
+    return `<div class="robot ${r.online?'':'offline'}">
+      <div class="row">
+        <div><b>${esc(r.robot_id)}</b> <span class="floor-pill">${esc(floor)}</span></div>
+        <span class="pill ${r.online?'onpill':'offpill'}">${r.online?'ONLINE':'OFFLINE'}</span>
+      </div>
+      <div style="margin:10px 0"><span class="badge ${badgeForState(r.state)}">${esc(r.state || 'UNKNOWN')}</span></div>
+      <div class="row muted"><span>battery</span><b>${r.battery ?? '-'}</b></div>
+      <div class="row muted"><span>pose</span><b>${p.x ?? '-'}, ${p.y ?? '-'}</b></div>
+      <div class="row muted"><span>task/status</span><b>${esc(r.current_task_id || '-')} / ${esc(r.task_status || '-')}</b></div>
+      <div class="row muted"><span>last seen</span><b>${Math.round(r.age_s ?? 0)}s</b></div>
+    </div>`;
+  }).join('') : '<div class="empty">수신된 로봇 상태 없음</div>';
+  $('robotCards').innerHTML = html;
+}
+// 개요 탭 우측: 로봇별 현재 상태(PATROL/ESCORTING 등) 요약. 로봇 상태 탭은 별도 유지.
+function renderOverviewRobotStatus(robots){
+  $('overviewRobotStatus').innerHTML = robots.length ? robots.map(r=>`
+    <div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div><b>${esc(r.robot_id)}</b> <span class="muted">${r.floor?`${r.floor}층`:''}</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="muted" style="font-size:12px">${r.battery ?? '-'}%</span>
+        <span class="badge ${badgeForState(r.state)}">${esc(r.state || 'UNKNOWN')}</span>
+        <span class="pill ${r.online?'onpill':'offpill'}">${r.online?'ON':'OFF'}</span>
+      </div>
+    </div>`).join('') : '<div class="empty">수신된 로봇 상태 없음</div>';
+}
+function renderRobotLog(data){
+  const rows = (data.log || []).slice(-80).reverse();
+  const floors = Object.fromEntries((latest.robots || []).map(r => [r.robot_id, r.floor]));
+  $('robotLog').innerHTML = rows.length ? `<table><tr><th>time</th><th>robot</th><th>state</th><th>battery</th><th>pose</th></tr>` +
+    rows.map(r=>`<tr><td class="muted">${time(r.at)}</td><td>${esc(r.robot_id)} <span class="muted">${floors[r.robot_id] ? floors[r.robot_id]+'층' : ''}</span></td><td>${esc(r.prev_state||'-')} -> <b>${esc(r.state||'-')}</b></td><td>${r.battery ?? '-'}</td><td>${r.x ?? '-'}, ${r.y ?? '-'}</td></tr>`).join('') +
+    `</table>` : '<div class="empty">상태 로그 없음</div>';
+}
+function renderEvents(id, events, active=false){
+  $(id).innerHTML = events.length ? `<table><tr><th>type/class</th><th>robot</th><th>loc</th><th>snapshot</th><th>time</th><th></th></tr>`+
+    events.map(e=>`<tr>
+      <td><span class="badge ${e.resolved?'gray':'red'}">${esc(eventName(e))}</span><br><span class="muted">${esc(e.confidence ?? '-')}</span></td>
+      <td>${esc(e.robot_id)}</td><td>${esc(e.floor ?? '-') }F / ${esc(e.x ?? '-')}, ${esc(e.y ?? '-')}</td>
+      <td class="muted">${esc(e.snapshot_ref || '-')}</td><td class="muted">${time(e.at)}</td>
+      <td>${active ? `<button class="btn" onclick="resolveEvent(${e.id})">조치완료</button>` : (e.resolved ? '<span class="muted">완료</span>' : '')}</td>
+    </tr>`).join('') + `</table>` : '<div class="empty">없음</div>';
+}
+function renderSystem(sys){
+  const ros = sys.ros || {}, db = sys.db || {}, r = sys.robots || {}, c = sys.counts || {};
+  const topics = [
+    ...(ros.robot_state_topics || []),
+    ...(ros.event_topics || []),
+    ...(ros.detection_topics || []),
+    ...(ros.information_topic ? [ros.information_topic] : []),
+  ].join(', ');
+  $('system').innerHTML = `<table>
+    <tr><th>ROS2</th><td>${esc(ros.mode || 'direct')} · ${esc(topics || '-')}</td></tr>
+    <tr><th>DB</th><td>${db.ok?'정상':'오류'} · ${esc(db.path)}</td></tr>
+    <tr><th>robots</th><td>${r.online||0}/${r.total||0} online · timeout ${r.timeout_s}s</td></tr>
+    <tr><th>rows</th><td>latest ${c.latest_robot_status||0} · status ${c.robot_status_log||0} · events ${c.events||0} · usage ${c.ui_usage_log||0} · counters ${c.monitor_counters||0}</td></tr>
+  </table>`;
+}
+// 이벤트 유형별 긴급 연락/신고 정의 (화재·환자→119+보안팀, 거수자→112+보안팀)
+const EMERG = {
+  FIRE:              {ko:'화재 발생',    emo:'🔥', cls:'',     call:{label:'📞 119 신고', num:'119'}},
+  EMERGENCY_PATIENT: {ko:'긴급환자 발생', emo:'🚑', cls:'',     call:{label:'📞 119 신고', num:'119'}},
+  SUSPICIOUS_PERSON: {ko:'거수자 감지',  emo:'🚨', cls:'warn',  call:{label:'📞 112 신고', num:'112'}},
+};
+// 활성 이벤트를 개요 상단 알람으로 표시. 조치완료(버튼)로 resolve되면 active에서 빠져 사라짐.
+function renderEmergencyAlarms(active){
+  const list = (active || []).filter(e=>!e.resolved);
+  $('emergencyAlarms').innerHTML = list.map(e=>{
+    const m = EMERG[e.event_type] || {ko:eventName(e), emo:'⚠', cls:'', call:null};
+    const floor = e.floor!=null ? e.floor+'F' : '-';
+    const conf = e.confidence!=null ? Math.round(e.confidence*100)+'%' : '-';
+    const callBtn = m.call ? `<a class="ebtn call" href="tel:${m.call.num}">${m.call.label}</a>` : '';
+    return `<div class="alarm-card ${m.cls}">
+      <span class="emo">${m.emo}</span>
+      <div class="info">
+        <div class="ttl">${esc(m.ko)} <span class="muted">· ${esc(e.robot_id||'')}</span></div>
+        <div class="meta">${floor} · 좌표 ${esc(e.x ?? '-')}, ${esc(e.y ?? '-')} · 신뢰도 ${conf} · ${time(e.at)}</div>
+      </div>
+      <div class="acts">
+        ${callBtn}
+        <button class="ebtn sec" onclick="notifySecurity(${e.id})">🛡 보안팀</button>
+        <button class="ebtn done" onclick="resolveEvent(${e.id})">조치완료</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function notifySecurity(id){ alert('보안팀에 통보되었습니다. (event #'+id+')'); }
+async function resolveEvent(id){
+  const { error } = await sb.rpc('resolve_event', { event_id: id });
+  if(error){ alert('조치 실패: '+error.message); return; }
+  await load();
+}
+async function search(){
+  const q=$('q').value.trim(), kind=$('kind').value;
+  if(!q){ $('searchResult').innerHTML=''; return; }
+  const d = await rpc('search_monitor', { q, kind, lim: 30 });
+  const ev = d.results?.events || [], st = d.results?.status || [];
+  let html = '';
+  if(ev.length) html += '<h2>이벤트</h2><table>' + ev.map(e=>`<tr><td>${esc(eventName(e))}</td><td>${esc(e.robot_id)}</td><td>${time(e.at)}</td></tr>`).join('') + '</table>';
+  if(st.length) html += '<h2>상태</h2><table>' + st.map(s=>`<tr><td>${esc(s.robot_id)}</td><td>${esc(s.prev_state)} -> ${esc(s.state)}</td><td>${time(s.at)}</td></tr>`).join('') + '</table>';
+  $('searchResult').innerHTML = html || '<div class="empty">검색 결과 없음</div>';
+}
+let timer;
+$('q').addEventListener('input', ()=>{clearTimeout(timer); timer=setTimeout(search,250);});
+$('kind').addEventListener('change', search);
+async function load(){
+  try{
+    const [robots, events, active, stats, sys, logRows] = await Promise.all([
+      rpc('get_robots', { timeout_s: TIMEOUT_S }),
+      sb.from('events').select('*').order('at',{ascending:false}).limit(50).then(unwrap),
+      sb.from('events').select('*').eq('resolved',0).order('at',{ascending:false}).limit(30).then(unwrap),
+      rpc('get_stats'),
+      rpc('get_system', { timeout_s: TIMEOUT_S }),
+      sb.from('robot_status_log')
+        .select('robot_id,state,prev_state,task_id,task_status,battery,x,y,at')
+        .order('id',{ascending:false}).limit(200).then(unwrap),
+    ]);
+    const robotLog = { log: logRows.slice().reverse() };
+    // ROS/DB fields are server-side only; fill them for renderSystem.
+    sys.ros = { mode:'supabase', information_topic:'',
+      robot_state_topics: robots.map(r=>r.namespace ? r.namespace+'/robot_state' : r.robot_id),
+      event_topics: [], detection_topics: [] };
+    sys.db = { ok:true, path:'supabase' };
+    latest = {robots, events, active, stats, sys, robotLog};
+    renderSummary(stats, sys);
+    renderOps(stats);
+    renderRobotCards(robots);
+    renderOverviewRobotStatus(robots);
+    renderRobotLog(robotLog);
+    renderEmergencyAlarms(active);
+    renderEvents('overviewActiveEvents', active, true);
+    renderEvents('activeEvents', active, true);
+    renderEvents('events', events);
+    renderSystem(sys);
+    $('conn').textContent = '정상 · ' + new Date().toLocaleTimeString();
+  }catch(e){
+    $('conn').textContent = '연결 오류';
+  }
+}
+// ── 영상 (WebRTC) — 로봇↔브라우저 P2P 수신, 서버 우회 ─────────────────
+const VPC = {};            // robot_id → RTCPeerConnection (활성 연결)
+let _videoBuilt = false;
+function isUnset(url){ return !url || /ROBOT\d?_IP/.test(url); }
+async function buildVideoGrid(){
+  if(_videoBuilt) return;  // 그리드는 1회만 — 탭 재진입 시 활성 연결 보존
+  let d; try{ d = await fetch('./video_sources.json').then(r=>r.json()); }
+  catch(e){ $('video-grid').innerHTML='<div class="empty">소스 불러오기 실패</div>'; return; }
+  const srcs = d.sources || [];
+  if(!srcs.length){ $('video-grid').innerHTML='<div class="empty">video_sources.json 에 소스 없음</div>'; _videoBuilt=true; return; }
+  $('video-grid').innerHTML = srcs.map(s=>{
+    const need=isUnset(s.signal_url);
+    return `<div class="vcard">
+      <div class="vtop"><span class="vid-name">${esc(s.label||s.robot_id)}</span>
+        <span class="vstate" id="vst-${esc(s.robot_id)}">대기</span></div>
+      <div class="vstage"><video id="vid-${esc(s.robot_id)}" autoplay playsinline muted></video></div>
+      <div class="vbtns"><button class="vbtn" id="vbtn-${esc(s.robot_id)}" ${need?'disabled':''}>연결</button></div>
+      <div class="vmeta">${need?'⚠ video_sources.json 에서 로봇 IP 설정 필요 · ':''}시그널링 <span class="mono">${esc(s.signal_url||'—')}</span></div>
+    </div>`;
+  }).join('');
+  srcs.forEach(s=>{ const b=$('vbtn-'+s.robot_id); if(b && !isUnset(s.signal_url)) b.addEventListener('click', ()=>toggleVideo(s)); });
+  _videoBuilt=true;
+}
+function setVState(rid,txt,cls){ const e=$('vst-'+rid); if(e){ e.textContent=txt; e.className='vstate '+(cls||''); } }
+function iceGatheringComplete(pc){
+  return new Promise(res=>{
+    if(pc.iceGatheringState==='complete') return res();
+    const f=()=>{ if(pc.iceGatheringState==='complete'){ pc.removeEventListener('icegatheringstatechange',f); res(); } };
+    pc.addEventListener('icegatheringstatechange',f);
+    setTimeout(res,2000);  // trickle 미사용 — 게더링 지연 안전장치
+  });
+}
+async function toggleVideo(s){
+  const rid=s.robot_id, btn=$('vbtn-'+rid);
+  if(VPC[rid]){  // 이미 연결됨 → 끊기
+    VPC[rid].close(); delete VPC[rid];
+    const v=$('vid-'+rid); if(v) v.srcObject=null;
+    setVState(rid,'대기',''); btn.textContent='연결'; btn.classList.remove('off'); return;
+  }
+  btn.textContent='끊기'; btn.classList.add('off'); setVState(rid,'연결 중…','connecting');
+  try{
+    const pc=new RTCPeerConnection({iceServers:[]});  // 같은 LAN → STUN/TURN 불필요
+    VPC[rid]=pc;
+    pc.addTransceiver('video',{direction:'recvonly'});
+    pc.ontrack=ev=>{ const v=$('vid-'+rid); if(v) v.srcObject=ev.streams[0]; };
+    pc.onconnectionstatechange=()=>{
+      const st=pc.connectionState;
+      if(st==='connected') setVState(rid,'연결됨','connected');
+      else if(st==='connecting') setVState(rid,'연결 중…','connecting');
+      else if(st==='failed'||st==='disconnected') setVState(rid,'연결 끊김','failed');
+      else if(st==='closed') setVState(rid,'대기','');
+    };
+    const offer=await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await iceGatheringComplete(pc);
+    const r=await fetch(s.signal_url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sdp:pc.localDescription.sdp,type:pc.localDescription.type})});
+    if(!r.ok) throw new Error('signal '+r.status);
+    await pc.setRemoteDescription(await r.json());
+  }catch(e){
+    setVState(rid,'실패','failed');
+    if(VPC[rid]){ VPC[rid].close(); delete VPC[rid]; }
+    btn.textContent='연결'; btn.classList.remove('off');
+  }
+}
+
+// ── Auth gate + Realtime bootstrap ───────────────────────────────────
+let _started = false;
+async function start(){
+  if(_started) return; _started = true;
+  $('loginOverlay').classList.add('hide');
+  load();
+  setInterval(load, 5000);  // periodic refresh keeps age_s/online fresh
+  sb.channel('monitor')
+    .on('postgres_changes', {event:'*', schema:'public', table:'latest_robot_status'}, load)
+    .on('postgres_changes', {event:'*', schema:'public', table:'events'}, load)
+    .subscribe();
+}
+$('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = $('loginEmail').value.trim(), password = $('loginPw').value;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ $('loginErr').classList.add('show'); return; }
+  start();
+});
+$('logoutBtn').addEventListener('click', async (e)=>{
+  e.preventDefault(); await sb.auth.signOut(); location.reload();
+});
+sb.auth.getSession().then(({data})=>{
+  if(data.session) start(); else $('loginOverlay').classList.remove('hide');
+});
+</script>
+</body>
+</html>

@@ -14,9 +14,23 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import config
 import db
+from store import SupabaseStore
 
 
 logger = logging.getLogger("monitor.api")
+
+# Option A: when Supabase is configured, the local dashboard sources EVENTS from
+# Supabase (single source of truth) so resolve syncs with the security team's
+# external view. Robot status / usage stay on local SQLite.
+_sb_events: SupabaseStore | None = None
+if config.SUPABASE_URL:
+    try:
+        _sb_events = SupabaseStore()
+        _sb_events.init()
+        logger.info("events sourced from Supabase (resolve syncs with external UI)")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Supabase events unavailable, falling back to SQLite: %s", exc)
+        _sb_events = None
 WEB_DIR = Path(__file__).resolve().parent / "web"
 VIZ_DIR = Path(__file__).resolve().parent.parent / "viz_3d"
 FLOOR_DATA_PATH = WEB_DIR / "maps" / "floor_data.json"
@@ -33,6 +47,9 @@ def _age_seconds(iso: str | None) -> float | None:
 
 def _count(sql: str, params: tuple = ()) -> int:
     return int((db.query_one(sql, params) or {}).get("c", 0))
+
+
+USAGE_PASSENGER_FILTER = "COALESCE(source, 'INTERACTING') NOT IN ('ESCORT', 'CANCEL')"
 
 
 def _row_to_robot(row: dict) -> dict:
@@ -183,6 +200,8 @@ def create_app(registry) -> Flask:
     def events():
         limit = request.args.get("limit", 50, type=int)
         active = request.args.get("active", type=int)
+        if _sb_events:
+            return jsonify(_sb_events.list_events(limit=limit, active=bool(active)))
         if active:
             return jsonify(db.query_all(
                 "SELECT * FROM events WHERE resolved=0 ORDER BY at DESC LIMIT ?", (limit,)))
@@ -191,12 +210,15 @@ def create_app(registry) -> Flask:
 
     @app.post("/api/events/<int:event_id>/resolve")
     def resolve_event(event_id: int):
+        user = session.get("user", "operator")
+        if _sb_events:
+            res = _sb_events.resolve_event(event_id, by=user)
+            return jsonify(res), (404 if res.get("error") else 200)
         ev = db.query_one("SELECT id, resolved FROM events WHERE id=?", (event_id,))
         if not ev:
             return jsonify({"error": "event not found"}), 404
         if ev["resolved"]:
             return jsonify({"ok": True, "already": True})
-        user = session.get("user", "operator")
         db.execute(
             "UPDATE events SET resolved=1, resolved_at=?, resolved_by=? WHERE id=?",
             (db.utc_now_iso(), user, event_id))
@@ -243,19 +265,30 @@ def create_app(registry) -> Flask:
 
     @app.get("/api/stats")
     def stats():
-        ev_rows = db.query_all(
-            "SELECT event_type, event_class, COUNT(*) c FROM events "
-            "GROUP BY event_type, event_class")
-        event_counts: dict[str, int] = {}
-        class_counts: dict[str, int] = {}
-        for row in ev_rows:
-            event_counts[row["event_type"] or "UNKNOWN"] = (
-                event_counts.get(row["event_type"] or "UNKNOWN", 0) + row["c"])
-            if row["event_class"]:
-                class_counts[row["event_class"]] = class_counts.get(row["event_class"], 0) + row["c"]
+        if _sb_events:
+            es = _sb_events.event_stats()
+            event_counts = es["by_type"]
+            class_counts = es["by_class"]
+            ev_total, ev_active = es["total"], es["active"]
+        else:
+            ev_rows = db.query_all(
+                "SELECT event_type, event_class, COUNT(*) c FROM events "
+                "GROUP BY event_type, event_class")
+            event_counts = {}
+            class_counts = {}
+            for row in ev_rows:
+                event_counts[row["event_type"] or "UNKNOWN"] = (
+                    event_counts.get(row["event_type"] or "UNKNOWN", 0) + row["c"])
+                if row["event_class"]:
+                    class_counts[row["event_class"]] = class_counts.get(row["event_class"], 0) + row["c"]
+            ev_total = _count("SELECT COUNT(*) c FROM events")
+            ev_active = _count("SELECT COUNT(*) c FROM events WHERE resolved=0")
 
         languages = {"ko": 0, "zh": 0, "ja": 0, "en": 0, "etc": 0}
-        for row in db.query_all("SELECT language, COUNT(*) c FROM ui_usage_log GROUP BY language"):
+        for row in db.query_all(
+            "SELECT language, COUNT(*) c FROM ui_usage_log "
+            f"WHERE {USAGE_PASSENGER_FILTER} GROUP BY language"
+        ):
             code = (row["language"] or "").lower()[:2]
             if code in languages:
                 languages[code] += row["c"]
@@ -265,15 +298,17 @@ def create_app(registry) -> Flask:
         profiles = {
             row["customer_profile"] or "UNKNOWN": row["c"]
             for row in db.query_all(
-                "SELECT customer_profile, COUNT(*) c FROM ui_usage_log GROUP BY customer_profile")
+                "SELECT customer_profile, COUNT(*) c FROM ui_usage_log "
+                f"WHERE {USAGE_PASSENGER_FILTER} GROUP BY customer_profile")
         }
         counters = {
             row["name"]: row["value"]
             for row in db.query_all("SELECT name, value FROM monitor_counters")
         }
 
-        usage_count = _count("SELECT COUNT(*) c FROM ui_usage_log")
-        escort_count = _count("SELECT COUNT(*) c FROM ui_usage_log WHERE escort_used=1")
+        usage_count = _count(f"SELECT COUNT(*) c FROM ui_usage_log WHERE {USAGE_PASSENGER_FILTER}")
+        escort_count = _count(
+            "SELECT COUNT(*) c FROM ui_usage_log WHERE escort_used=1 OR source='ESCORT'")
         vulnerable = (
             profiles.get("ELDERLY", 0)
             + profiles.get("VISUALLY_IMPAIRED", 0)
@@ -286,8 +321,8 @@ def create_app(registry) -> Flask:
                 "status_log": _count("SELECT COUNT(*) c FROM robot_status_log"),
             },
             "events": {
-                "total": _count("SELECT COUNT(*) c FROM events"),
-                "active": _count("SELECT COUNT(*) c FROM events WHERE resolved=0"),
+                "total": ev_total,
+                "active": ev_active,
                 "by_type": event_counts,
                 "by_class": class_counts,
             },
@@ -332,6 +367,11 @@ def create_app(registry) -> Flask:
                     config.ros_event_topic(robot_id)
                     for robot_id in config.ROBOT_IDS
                 ],
+                "detection_topics": [
+                    config.ros_detection_topic(robot_id)
+                    for robot_id in config.ROBOT_IDS
+                ],
+                "information_topic": config.ROS_INFORMATION_TOPIC,
             },
             "db": {"ok": db_ok, "path": os.path.basename(config.DB_PATH)},
             "robots": {

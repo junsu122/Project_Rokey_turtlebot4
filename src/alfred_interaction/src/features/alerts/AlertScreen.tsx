@@ -88,7 +88,15 @@ export function AlertScreen() {
       <button
         type="button"
         className={styles.dismiss}
-        onClick={() => dispatch({ type: 'CLEAR_ALERT' })}
+        onClick={(event) => {
+          // Clearing the alert hands control straight back to patrol. Consume
+          // the tap so it doesn't leak into the patrol screen's window-level
+          // "any input → Home" wake (useAnyInput), which would fire an unwanted
+          // INTERACTING request and jump past patrol into Home. Same guard the
+          // patrol wake button uses.
+          event.stopPropagation();
+          dispatch({ type: 'CLEAR_ALERT' });
+        }}
       >
         경보 해제
       </button>

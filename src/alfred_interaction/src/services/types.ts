@@ -4,6 +4,7 @@ import type { LlmService } from './llm';
 import type { NavigationService } from './navigation';
 import type { FmsService } from './fms';
 import type { DetectionService } from './detection';
+import type { RobotStateService } from './robot-state';
 import type { TtsService } from './tts';
 
 /** The full set of services the UI consumes. Provide real impls to go live. */
@@ -15,6 +16,8 @@ export interface Services {
   fms: FmsService;
   /** Inbound YOLO emergency detections (FIRE/INJURED/SUSPICIOUS) → alerts. */
   detection: DetectionService;
+  /** Inbound robot status (IF-02) → screen (charging/waiting/patrol/...). */
+  robotState: RobotStateService;
   /** Text-to-speech (VI mode + emergency announcements). Browser-native, no key. */
   tts: TtsService;
 }

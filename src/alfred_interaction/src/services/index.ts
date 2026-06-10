@@ -32,6 +32,8 @@ export type { FmsService } from './fms';
 export { MockFmsService, RosBridgeFmsService } from './fms';
 export type { DetectionService, DetectionHandler } from './detection';
 export { MockDetectionService, RosBridgeDetectionService } from './detection';
+export type { RobotStateService, RobotStateHandler } from './robot-state';
+export { MockRobotStateService, RosBridgeRobotStateService } from './robot-state';
 export type { TtsService, TtsSpeakOptions } from './tts';
 export { WebSpeechTtsService, MockTtsService } from './tts';
 export { useSpeak } from './useSpeak';

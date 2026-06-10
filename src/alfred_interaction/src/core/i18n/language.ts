@@ -74,5 +74,13 @@ export interface AppStrings {
     arrived: string;
     cancel: string;
   };
+  /** Robot docked / charging (DOCKING / UNDOCKING). */
+  charging: { caption: string; subtitle: string };
+  /** Robot waiting for the user / cross-floor handoff (WAITING / FINISHED). */
+  waiting: {
+    caption: string;
+    subtitle: string;
+    transfer: (toFloor: string) => string;
+  };
   staff: { title: string; description: string; note: string; close: string };
 }
