@@ -15,6 +15,7 @@ class FireHandler:
         self._ns         = ns
         self._active     = False
         self._has_patrol = has_patrol
+        self._at_exit    = False  # 비상구 도착 후 조치완료 대기 중
 
         pose = _EXIT_POSES.get(exit_poi)
         if pose is None:
@@ -31,7 +32,8 @@ class FireHandler:
         self._pub_resume = node.create_publisher(Empty,       f'{ns}/resume_patrol_request', 10)
         self._waiting    = False
 
-        node.create_subscription(String, f'{ns}/nav_status', self._cb_nav_status, 10)
+        node.create_subscription(String, f'{ns}/nav_status',        self._cb_nav_status,       10)
+        node.create_subscription(Empty,  f'{ns}/emergency_resolve', self._cb_emergency_resolve, 10)
 
     def is_active(self) -> bool:
         return self._active
@@ -39,7 +41,8 @@ class FireHandler:
     def handle(self, payload: dict):
         if self._active:
             return
-        self._active = True
+        self._active   = True
+        self._at_exit  = False
 
         cls  = payload.get('class', '?')
         conf = payload.get('confidence', 0)
@@ -70,7 +73,14 @@ class FireHandler:
             self._waiting = False
             self._node.get_logger().info(f'[{self._ns}] patrol_stopped 확인 → 비상구 이동')
             self._send_exit_goal()
-        elif self._active and msg.data == 'arrived':
-            self._node.get_logger().info(f'[{self._ns}] 비상구 도착 → 귀환 요청')
-            self._pub_resume.publish(Empty())
-            self._active = False
+        elif self._active and not self._waiting and msg.data == 'arrived':
+            self._at_exit = True
+            self._node.get_logger().info(f'[{self._ns}] 비상구 도착 → monitor 조치완료 대기')
+
+    def _cb_emergency_resolve(self, _msg):
+        if not self._active:
+            return
+        self._node.get_logger().info(f'[{self._ns}] 조치완료 수신 → 패트롤 복귀')
+        self._pub_resume.publish(Empty())
+        self._active  = False
+        self._at_exit = False

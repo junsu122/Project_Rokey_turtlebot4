@@ -4,7 +4,6 @@ from std_msgs.msg import Empty, String
 from rclpy.duration import Duration
 from rclpy.time import Time
 
-_STAY_SEC        = 30.0
 _APPROACH_OFFSET = 0.2
 
 
@@ -14,15 +13,18 @@ class InjuredHandler:
         self._ns         = ns
         self._tf_buffer  = tf_buffer
         self._active     = False
-        self._stay_timer = None
         self._waiting    = False
+        self._at_patient = False  # 환자 위치 도착 후 조치완료 대기 중
         self._has_patrol = has_patrol
+        self._target_x   = None
+        self._target_y   = None
 
         self._pub_stop   = node.create_publisher(Empty,       f'{ns}/stop_request',          10)
         self._pub_goal   = node.create_publisher(PoseStamped, f'{ns}/goal_pose_request',     10)
         self._pub_resume = node.create_publisher(Empty,       f'{ns}/resume_patrol_request', 10)
 
-        node.create_subscription(String, f'{ns}/nav_status', self._cb_nav_status, 10)
+        node.create_subscription(String, f'{ns}/nav_status',        self._cb_nav_status,       10)
+        node.create_subscription(Empty,  f'{ns}/emergency_resolve', self._cb_emergency_resolve, 10)
 
     def is_active(self) -> bool:
         return self._active
@@ -30,7 +32,8 @@ class InjuredHandler:
     def handle(self, payload: dict):
         if self._active:
             return
-        self._active = True
+        self._active     = True
+        self._at_patient = False
 
         cls  = payload.get('class', '?')
         conf = payload.get('confidence', 0)
@@ -76,8 +79,9 @@ class InjuredHandler:
             self._pub_goal.publish(goal)
             self._node.get_logger().info(f'[{self._ns}] 접근 goal 발행 (x={gx:.2f}, y={gy:.2f})')
         else:
-            self._node.get_logger().warn(f'[{self._ns}] 환자 위치 없음 → 30초 대기 후 복귀')
-            self._start_stay_timer()
+            # 위치 없으면 현위치에서 대기
+            self._node.get_logger().warn(f'[{self._ns}] 환자 위치 없음 → 현위치 대기')
+            self._at_patient = True
 
     def _cb_nav_status(self, msg: String):
         if self._has_patrol and self._waiting and msg.data.startswith('patrol_stopped'):
@@ -86,18 +90,13 @@ class InjuredHandler:
             self._move_to_patient()
 
         elif self._active and not self._waiting and msg.data == 'arrived':
-            self._node.get_logger().info(f'[{self._ns}] 환자 위치 도착 → {_STAY_SEC:.0f}초 대기')
-            self._start_stay_timer()
+            self._at_patient = True
+            self._node.get_logger().info(f'[{self._ns}] 환자 위치 도착 → monitor 조치완료 대기')
 
-    def _start_stay_timer(self):
-        if self._stay_timer is None:
-            self._stay_timer = self._node.create_timer(_STAY_SEC, self._end_event)
-
-    def _end_event(self):
-        if self._stay_timer:
-            self._stay_timer.cancel()
-            self._stay_timer = None
-
+    def _cb_emergency_resolve(self, _msg):
+        if not self._active:
+            return
+        self._node.get_logger().info(f'[{self._ns}] 조치완료 수신 → 패트롤 복귀')
         self._pub_resume.publish(Empty())
-        self._active = False
-        self._node.get_logger().info(f'[{self._ns}] 대기 종료 → 패트롤 재개')
+        self._active     = False
+        self._at_patient = False

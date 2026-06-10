@@ -38,6 +38,7 @@ PATROL              = "PATROL"
 ESCORT_1F           = "ESCORT_1F"
 WAITING_1F          = "WAITING_1F"
 WAITING_2F          = "WAITING_2F"
+GO_HANDOVER         = "GO_HANDOVER"
 ESCORT_1F_FINISHED  = "ESCORT_1F_FINISHED"
 ESCORT_2F           = "ESCORT_2F"
 ESCORT_2F_FINISHED  = "ESCORT_2F_FINISHED"
@@ -138,10 +139,10 @@ class EscortStateBridgeNode(Node):
             if self._waiting_for_dest:
                 # robot2 정지 후 목적지 수신 → 1F→1F 또는 1F→2F
                 self._waiting_for_dest = False
-                self._start_escort(poi_id)
+                self._start_escort(poi_id, relay=True)
             elif self.state == PATROL and goal['robot'] == 'robot4':
                 # robot2 정지 없이 2F 목적지 → 2F→2F
-                self._start_escort(poi_id)
+                self._start_escort(poi_id, relay=False)
 
     def _on_detection(self, msg: String, robot: str) -> None:
         """detector_node 의 /{robot}/detection/info → FIRE/INJURED/SUSPICIOUS 상태 전이."""
@@ -195,9 +196,10 @@ class EscortStateBridgeNode(Node):
 
             if goal_name and goal_name in LOCATIONS:
                 # 단일 단계(/escort_request): 목적지 포함
+                # robot2가 멈춘 상태에서 2F 목적지 → relay 필요
                 self.pending_request = None
                 self._waiting_for_dest = False
-                self._start_escort(goal_name)
+                self._start_escort(goal_name, relay=(LOCATIONS[goal_name]['robot'] == 'robot4'))
             elif robot == 'robot2':
                 # 2단계 웹 흐름: 목적지 아직 미수신, ESCORT 메시지 대기
                 self._waiting_for_dest = True
@@ -237,7 +239,7 @@ class EscortStateBridgeNode(Node):
 
     # ── 에스코트 상태 전이 ────────────────────────────────────────────────────
 
-    def _start_escort(self, goal_name: str) -> None:
+    def _start_escort(self, goal_name: str, relay: bool = False) -> None:
         goal = LOCATIONS[goal_name]
         self.goal_poi = goal_name
 
@@ -250,7 +252,7 @@ class EscortStateBridgeNode(Node):
             self.arrived       = {}
             self._set_state(ESCORT_1F)
 
-        elif self.state == PATROL and not self._waiting_for_dest:
+        elif not relay:
             # 2F→2F: robot4 단독 (robot2 정지 없음)
             self.escort_robot   = None
             self.continue_robot = 'robot4'
@@ -350,6 +352,9 @@ class EscortStateBridgeNode(Node):
         if state == ESCORT_1F:
             if self.escort_robot:
                 self._publish_ui(self.escort_robot, ESCORT_1F, destination=dest)
+            if self.continue_robot:
+                # 1F→2F relay: robot4가 환승점(lift2)으로 이동 시작
+                self._publish_ui(self.continue_robot, GO_HANDOVER)
 
         elif state == WAITING_1F:
             self._publish_ui("robot2", WAITING_1F)
@@ -357,6 +362,7 @@ class EscortStateBridgeNode(Node):
 
         elif state == ESCORT_1F_FINISHED:
             self._publish_ui("robot2", ESCORT_1F_FINISHED, target_floor=2)
+            self._publish_ui("robot2", ESCORT_COMPLETED)
 
         elif state == ESCORT_2F:
             if self.continue_robot:

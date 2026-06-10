@@ -19,10 +19,10 @@ event_handler_robot4:
 
 video_sender_robot2:
   ros__parameters:
-    namespace: /robot2/oakd/rgb/image_raw/compressed
-    signal_port: 8081
+    image_topic: /robot2/detection/image
+    http_port: 8081
 
 video_sender_robot4:
   ros__parameters:
-    namespace: /robot4/oakd/rgb/image_raw/compressed
-    signal_port: 8082
+    image_topic: /robot4/detection/image
+    http_port: 8082

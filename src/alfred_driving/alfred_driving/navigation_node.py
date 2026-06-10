@@ -58,8 +58,11 @@ class NavigationNode(Node):
 
     def resume_patrol_callback(self, _msg):
         if self.is_moving:
-            self.get_logger().warn("Resume patrol request received but robot is moving. Ignoring.")
-            return
+            self.get_logger().warn("Resume patrol: robot is moving. Cancelling first.")
+            self.navigator.cancelTask()
+            while not self.navigator.isTaskComplete():
+                rclpy.spin_once(self.navigator, timeout_sec=0.1)
+            self.is_moving = False
 
         home_name = HOME.get(self.robot_namespace)
         if home_name is None:
@@ -84,8 +87,11 @@ class NavigationNode(Node):
 
     def goal_callback(self, msg):
         if self.is_moving:
-            self.get_logger().warn("Robot is already moving. New goal ignored.")
-            return
+            self.get_logger().warn("Robot is moving. Cancelling for new goal.")
+            self.navigator.cancelTask()
+            while not self.navigator.isTaskComplete():
+                rclpy.spin_once(self.navigator, timeout_sec=0.1)
+            self.is_moving = False
 
         self.is_moving = True
         self.get_logger().info(f"/{self.robot_namespace} received new goal")

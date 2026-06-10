@@ -182,6 +182,7 @@ class StateWsBridgeNode(Node):
 
         # 직전 상태 캐시 — 바뀐 경우에만 broadcast
         self._last: dict[str, str] = {}
+        self._pose: dict[str, dict] = {}  # robot_id → {x, y, theta}
 
         self._server = _ThreadingWebsocketServer((host, port), _BroadcastHandler, self)
         self._ws_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
@@ -197,6 +198,11 @@ class StateWsBridgeNode(Node):
                 lambda msg, r=robot: self._cb_detection(msg, r),
                 10,
             )
+            self.create_subscription(
+                RobotState, f"/{robot}/robot_state",
+                lambda msg, r=robot: self._cb_robot_state(msg, r),
+                10,
+            )
 
         self.get_logger().info(f"state_ws_bridge: ws://{host}:{port} 에서 web 연결 대기")
 
@@ -204,9 +210,37 @@ class StateWsBridgeNode(Node):
 
     def _cb_r2(self, msg: String) -> None:
         self._push_if_changed("/robot2/nav_status", msg.data, {"data": msg.data})
+        if msg.data == "patrol_stopped":
+            self._push_interacting_pose("robot2")
 
     def _cb_r4(self, msg: String) -> None:
         self._push_if_changed("/robot4/nav_status", msg.data, {"data": msg.data})
+        if msg.data == "patrol_stopped":
+            self._push_interacting_pose("robot4")
+
+    def _cb_robot_state(self, msg: RobotState, robot: str) -> None:
+        self._pose[robot] = {
+            "x":     msg.pose.x,
+            "y":     msg.pose.y,
+            "theta": msg.pose.theta,
+        }
+
+    def _push_interacting_pose(self, robot: str) -> None:
+        pose = self._pose.get(robot, {"x": 0.0, "y": 0.0, "theta": 0.0})
+        self.get_logger().info(
+            f"[{robot}] patrol_stopped → interacting_pose push "
+            f"(x={pose['x']:.2f}, y={pose['y']:.2f})"
+        )
+        self._server.broadcast_json({
+            "op":    "publish",
+            "topic": f"/{robot}/interacting_pose",
+            "msg": {
+                "robot_id": robot,
+                "x":        pose["x"],
+                "y":        pose["y"],
+                "theta":    pose["theta"],
+            },
+        })
 
     def _cb_detection(self, msg: String, robot: str) -> None:
         try:
