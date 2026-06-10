@@ -11,6 +11,15 @@ from turtlebot4_navigation.turtlebot4_navigator import TurtleBot4Navigator
 from alfred_driving.locations import HOME, INITIAL_POSE, LOCATIONS
 
 
+def same_xy(goal_pose, location_name: str, tolerance_m: float = 0.05) -> bool:
+    """goal_pose의 x/y가 LOCATIONS[location_name] 좌표와 일치하는지 확인."""
+    position, _ = LOCATIONS[location_name]['pose']
+    return (
+        abs(goal_pose.pose.position.x - float(position[0])) <= tolerance_m
+        and abs(goal_pose.pose.position.y - float(position[1])) <= tolerance_m
+    )
+
+
 class NavigationNode(Node):
     def __init__(self):
         super().__init__('navigation_node')
@@ -103,6 +112,11 @@ class NavigationNode(Node):
 
         self.get_logger().info(f"/{self.robot_namespace} goal reached")
         self.is_moving = False
+
+        # robot4가 station2(홈)로 복귀했을 때 자동 도킹
+        if self.robot_namespace == 'robot4' and same_xy(msg, 'station2'):
+            self.get_logger().info('/robot4 returned to station2. Docking.')
+            self.navigator.dock()
 
         status_msg = String()
         status_msg.data = 'arrived'

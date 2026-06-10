@@ -371,7 +371,7 @@ function floorPlate(w,d){
 }
 
 // ---- item builders (group은 (x,0,z)에 위치 → 이동 쉬움) ----
-function makeZone(it){
+function makeZone(it,floor){
   const g=new THREE.Group();
   const col=new THREE.Color(STATUS[it.status||'ok']);
   const tile=new THREE.Mesh(new THREE.BoxGeometry(it.w,.6,it.d),
@@ -379,7 +379,9 @@ function makeZone(it){
   tile.position.y=.5; g.add(tile);
   const e=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(it.w,.6,it.d)),
     new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.8})); e.position.y=.5; g.add(e);
-  if(it.label){const lab=labelSprite(it.label,'#'+col.getHexString()); lab.position.y=14; g.add(lab);}
+  if(it.label){const lab=labelSprite(it.label,'#'+col.getHexString());
+    const ls=(LABEL_SCALE&&LABEL_SCALE[floor])||1; lab.scale.multiplyScalar(ls);
+    lab.position.y=14; g.add(lab);}
   g.userData.mainMesh=tile;
   return g;
 }
@@ -421,7 +423,7 @@ function makePillar(it){
 function makeItem(it,floor){
   let g, furn=false;
   switch(it.kind){
-    case 'zone': g=makeZone(it); break;
+    case 'zone': g=makeZone(it,floor); break;
     case 'wall': g=makeWall(it); break;
     case 'pillar': g=makePillar(it); break;
     case 'elevator': g=makeElevator(); furn=true; break;
@@ -457,13 +459,14 @@ function robotMarker(name='TB4'){
 // ===== Floor layout DATA (편집 가능) =====
 const PLATE={1:{W:144.9,D:67}, 2:{W:66.2,D:53.6}};   // 실측 비율(미터×18): 1F 8.05×3.72m, 2F 3.68×2.98m
 const FSCALE={1:0.7, 2:0.45};                          // 가구(엘베/에스컬/소파 등) 크기 층별 보정
+const LABEL_SCALE={1:1, 2:0.6};                        // 존 라벨 글씨 크기 층별 보정(2층 맵이 작아 축소)
 const DEFAULT_FLOOR_DATA = {
   1:[
     {id:'w1',kind:'wall',x:0,z:-33.5,w:144.9,d:0.7,h:11},
     {id:'w2',kind:'wall',x:0,z:32.9,w:144.9,d:0.7,h:11,opacity:0.28},
     {id:'w3',kind:'wall',x:-72.4,z:0,w:1.1,d:67,h:11},
     {id:'w4',kind:'wall',x:71.5,z:-6.7,w:1.1,d:52.4,h:11},
-    {id:'z_ent1',kind:'zone',x:-63.4,z:-22.5,w:16.3,d:20.7,label:'출입구',status:'ok'},
+    {id:'z_ent1',kind:'zone',x:-63.4,z:-22.5,w:16.3,d:20.7,label:'1번출구',status:'ok'},
     {id:'z_wc',kind:'zone',x:-58,z:8.5,w:23.5,d:18.3,label:'WC',status:'ok'},
     {id:'f_desk',kind:'desk',x:-12.7,z:-30.5},
     {id:'z_info',kind:'zone',x:-11.8,z:-29.8,w:14.5,d:6.1,label:'안내',status:'ok'},
@@ -473,7 +476,7 @@ const DEFAULT_FLOOR_DATA = {
     {id:'z_escL',kind:'zone',x:-17.2,z:27.4,w:14.5,d:8.5,label:'escalator',status:'ok'},
     {id:'f_sofa',kind:'sofa',x:18.1,z:26.8,rot:0},
     {id:'z_wait',kind:'zone',x:18.1,z:26.2,w:18.1,d:7.3,label:'대기',status:'ok'},
-    {id:'z_ent2',kind:'zone',x:61.6,z:24.4,w:19.9,d:17.1,label:'출입구',status:'ok'},
+    {id:'z_ent2',kind:'zone',x:61.6,z:24.4,w:19.9,d:17.1,label:'2번출구',status:'ok'},
   ],
   2:[
     {id:'w1',kind:'wall',x:0,z:-26.8,w:66.2,d:0.6,h:11},

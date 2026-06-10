@@ -46,7 +46,7 @@ class MonitorServer:
         else:
             threading.Thread(
                 target=api.run_api,
-                args=(self.registry,),
+                args=(self.registry, self.ros_node),
                 daemon=True,
                 name="flask-api",
             ).start()

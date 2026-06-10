@@ -19,6 +19,10 @@ LOCATIONS = {
     "lift":      {"floor": 1, "robot": "robot2", "pose": ([-2.86, 3.82],  TurtleBot4Directions.NORTH)},
     "esc":       {"floor": 1, "robot": "robot2", "pose": ([-5.0, 1.3],    TurtleBot4Directions.NORTH)},
     "station":   {"floor": 1, "robot": "robot2", "pose": ([-2.5, 1.8],   TurtleBot4Directions.EAST)},
+    "patrol_1":  {"floor": 1, "robot": "robot2", "pose": ([-7.0, 2.7],   TurtleBot4Directions.EAST)},
+    "patrol_2":  {"floor": 1, "robot": "robot2", "pose": ([-7.0, 1.3],   TurtleBot4Directions.NORTH)},
+    "patrol_3":  {"floor": 1, "robot": "robot2", "pose": ([-2.7, 2.12],  TurtleBot4Directions.WEST)},
+    "patrol_4":  {"floor": 1, "robot": "robot2", "pose": ([-2.7, 3.3],   TurtleBot4Directions.SOUTH)},
 
     # Floor 2 (robot4)
     "lift2":     {"floor": 2, "robot": "robot4", "pose": ([-1.75, 1.25],  TurtleBot4Directions.NORTH)},
@@ -34,6 +38,20 @@ LOCATIONS = {
 
 # fixed floor-transfer point: floor 1 'lift' <-> floor 2 'lift2'
 TRANSFER = {1: "lift", 2: "lift2"}
+
+# 층간 이동 지점 쌍. scenario_planner/scenario_manager_node에서 출발 위치에 따라 선택
+TRANSFER_PAIRS = {
+    "lift": {1: "lift", 2: "lift2"},
+    "esc":  {1: "esc",  2: "esc2"},
+}
+
+# 1층 출발 x 좌표가 이 값보다 작으면 lift/lift2 대신 esc/esc2 사용
+ESC_X_THRESHOLD = -5.01
+
+# 각 로봇의 순찰 waypoint 루트 (patrol_node / scenario_manager_node 공용)
+PATROL_ROUTES = {
+    "robot2": ["patrol_1", "patrol_2", "patrol_3", "patrol_4"],
+}
 
 # each robot's home/dock location
 HOME = {"robot2": "station", "robot4": "station2"}

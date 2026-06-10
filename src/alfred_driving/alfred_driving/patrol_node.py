@@ -18,7 +18,7 @@
 
 from math import floor
 from threading import Lock, Thread
-from time import sleep
+from time import monotonic, sleep
 
 import rclpy
 
@@ -29,13 +29,51 @@ from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import BatteryState
 from std_msgs.msg import Empty, String
-from turtlebot4_navigation.turtlebot4_navigator import TurtleBot4Directions, TurtleBot4Navigator
+from turtlebot4_navigation.turtlebot4_navigator import TurtleBot4Navigator
 
-from alfred_driving.locations import INITIAL_POSE
+from alfred_driving.locations import INITIAL_POSE, LOCATIONS, PATROL_ROUTES
+
+DOCK_STATUS_TIMEOUT_SEC = 5.0
+UNDOCK_CONFIRM_TIMEOUT_SEC = 10.0
 
 BATTERY_HIGH = 0.95
 BATTERY_LOW = 0.2  # when the robot will go charge
 BATTERY_CRITICAL = 0.1  # when the robot will shutdown
+
+
+def namespaced_node(namespace: str, node_name: str) -> str:
+    return f'/{namespace.strip("/")}/{node_name}'
+
+
+def wait_for_dock_status(navigator: TurtleBot4Navigator,
+                         timeout_sec: float = DOCK_STATUS_TIMEOUT_SEC):
+    """dock_status 수신 대기. 미수신 시 None 반환."""
+    deadline = monotonic() + timeout_sec
+    while rclpy.ok() and navigator.is_docked is None and monotonic() < deadline:
+        rclpy.spin_once(navigator, timeout_sec=0.1)
+    return navigator.is_docked
+
+
+def wait_until_undocked(navigator: TurtleBot4Navigator,
+                        timeout_sec: float = UNDOCK_CONFIRM_TIMEOUT_SEC) -> bool:
+    """undock 명령 후 dock_status=False 확인까지 대기."""
+    deadline = monotonic() + timeout_sec
+    while rclpy.ok() and monotonic() < deadline:
+        rclpy.spin_once(navigator, timeout_sec=0.1)
+        if navigator.is_docked is False:
+            navigator.info('Confirmed robot is undocked.')
+            return True
+    navigator.warn('Undock confirmation timed out. Continuing anyway.')
+    return False
+
+
+def make_patrol_goals(navigator: TurtleBot4Navigator) -> list:
+    """PATROL_ROUTES['robot2'] → [(waypoint_name, PoseStamped)] 리스트."""
+    goals = []
+    for name in PATROL_ROUTES['robot2']:
+        position, direction = LOCATIONS[name]['pose']
+        goals.append((name, navigator.getPoseStamped(position, direction)))
+    return goals
 
 
 class Robot2Monitor(Node):
@@ -183,8 +221,11 @@ def cancel_and_wait(navigator):
     navigator.info('Patrol task fully stopped.')
 
 
-def run_patrol(navigator, monitor, lock, goal_pose):
-    """Patrol loop. Returns True if stopped because an escort was requested."""
+def run_patrol(navigator, monitor, lock, goals: list):
+    """Patrol loop. Returns True if stopped because an escort was requested.
+
+    goals: [(waypoint_name, PoseStamped)] from make_patrol_goals()
+    """
     battery_percent = None
     position_index = 0
 
@@ -201,45 +242,43 @@ def run_patrol(navigator, monitor, lock, goal_pose):
         if battery_percent is not None:
             navigator.info(f'Battery is at {(battery_percent*100):.2f}% charge')
 
-            # Check battery charge level
             if battery_percent < BATTERY_CRITICAL:
                 navigator.error('Battery critically low. Charge or power down')
                 return False
+
             elif battery_percent < BATTERY_LOW:
-                # Go near the dock
                 navigator.info('Docking for charge')
-                monitor.publish_docking() ## 준수 추가
-                navigator.startToPose(navigator.getPoseStamped([-1.0, 1.0],
-                                      TurtleBot4Directions.EAST))
+                monitor.publish_docking()
+                # LOCATIONS['station'] 좌표로 도킹 접근 (하드코딩 [-1.0,1.0] 대신)
+                station_pos, station_dir = LOCATIONS['station']['pose']
+                navigator.startToPose(navigator.getPoseStamped(station_pos, station_dir))
                 navigator.dock()
 
                 if not navigator.getDockedStatus():
                     navigator.error('Robot failed to dock')
                     return False
 
-                # Wait until charged
                 navigator.info('Charging...')
                 battery_percent_prev = 0
                 while battery_percent < BATTERY_HIGH:
                     sleep(15)
-                    battery_percent_prev = floor(battery_percent*100)/100
+                    battery_percent_prev = floor(battery_percent * 100) / 100
                     with lock:
                         battery_percent = monitor.battery_percent
-
-                    # Print charge level every time it increases a percent
                     if battery_percent > (battery_percent_prev + 0.01):
                         navigator.info(f'Battery is at {(battery_percent*100):.2f}% charge')
 
-                # Undock
-                monitor.publish_undocking() ## 준수 추가
+                monitor.publish_undocking()
                 navigator.undock()
-                monitor.publish_patrol_resumed() ## 준수 추가
+                wait_until_undocked(navigator)
+                monitor.publish_patrol_resumed()
                 position_index = 0
 
             else:
-                # Navigate to next position, polling so an escort request can interrupt it
+                goal_name, goal_pose = goals[position_index]
+                navigator.info(f'Driving to patrol waypoint: {goal_name}')
                 try:
-                    accepted = navigator.goToPose(goal_pose[position_index])
+                    accepted = navigator.goToPose(goal_pose)
                 except Exception as err:
                     navigator.error(f'Failed to send patrol goal: {err}')
                     sleep(1.0)
@@ -263,9 +302,8 @@ def run_patrol(navigator, monitor, lock, goal_pose):
                 if interrupted:
                     return True
 
-                position_index = position_index + 1
-                if position_index >= len(goal_pose):
-                    position_index = 0
+                navigator.info(f'Waypoint reached: {goal_name}')
+                position_index = (position_index + 1) % len(goals)
 
 
 def run_escort_goal_executor(navigator, monitor, lock):
@@ -345,25 +383,28 @@ def main(args=None):
     position, direction = INITIAL_POSE['robot2']
     navigator.setInitialPose(navigator.getPoseStamped(position, direction))
 
-    # Wait for Nav2
-    navigator.waitUntilNav2Active()
+    # Wait for Nav2 — namespace 포함 명시 버전 사용 (robot2 namespace에서 실행 시 필요)
+    navigator.waitUntilNav2Active(
+        navigator=namespaced_node('robot2', 'bt_navigator'),
+        localizer=namespaced_node('robot2', 'amcl'),
+    )
 
-    # Undock only when needed. Calling undock while already undocked can make
-    # the Create base/action server behave badly on some runs.
-    if navigator.getDockedStatus():
+    # Undock only when needed
+    docked = wait_for_dock_status(navigator)
+    if docked is None:
+        navigator.warn('dock_status not received. Continuing without dock check.')
+    elif docked:
+        navigator.info('Robot is docked. Undocking before patrol.')
         navigator.undock()
+        wait_until_undocked(navigator)
     else:
         navigator.info('Robot is already undocked. Starting patrol.')
 
-    # Prepare patrol waypoints
-    goal_pose = []
-    goal_pose.append(navigator.getPoseStamped([-7.0, 2.7], TurtleBot4Directions.EAST))
-    goal_pose.append(navigator.getPoseStamped([-7.0, 1.3], TurtleBot4Directions.NORTH))
-    goal_pose.append(navigator.getPoseStamped([-2.7, 2.12], TurtleBot4Directions.WEST))
-    goal_pose.append(navigator.getPoseStamped([-2.7, 3.3], TurtleBot4Directions.SOUTH))
+    # Patrol waypoints: locations.py의 PATROL_ROUTES 기반 (단일 수정 포인트)
+    patrol_goals = make_patrol_goals(navigator)
 
     while rclpy.ok():
-        escort_triggered = run_patrol(navigator, monitor, lock, goal_pose)
+        escort_triggered = run_patrol(navigator, monitor, lock, patrol_goals)
 
         if not escort_triggered:
             navigator.info('Patrol stopped.')

@@ -6,7 +6,7 @@ import json
 import logging
 
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 
 import config
 import event_service
@@ -20,7 +20,9 @@ logger = logging.getLogger("monitor.ros")
 
 class RosIngestNode(Node):
     def __init__(self, registry: RobotRegistry) -> None:
-        super().__init__("monitor_server_ros_ingest")
+        # 노드 이름에 백엔드 접미사 — sqlite 대시보드와 supabase 펌프를 동시에 띄울 때
+        # 같은 노드 이름이면 ROS2 discovery/구독이 충돌해 한쪽이 메시지를 못 받는다.
+        super().__init__(f"monitor_server_ros_ingest_{config.BACKEND}")
         self.registry = registry
         self._subscriptions = []
 
@@ -65,6 +67,22 @@ class RosIngestNode(Node):
             )
         )
         logger.info("subscribed ROS2 %s", config.ROS_INFORMATION_TOPIC)
+
+        # emergency_resolve 퍼블리셔 — 조치완료 버튼이 누리면 해당 로봇에 발행
+        self._emergency_resolve_pubs: dict[str, object] = {
+            robot_id: self.create_publisher(Empty, f"/{robot_id}/emergency_resolve", 1)
+            for robot_id in config.ROBOT_IDS
+        }
+
+    def publish_emergency_resolve(self, robot_id: str) -> bool:
+        """조치완료 버튼 → 해당 로봇 핸들러에게 emergency_resolve 신호 발행."""
+        pub = self._emergency_resolve_pubs.get(robot_id)
+        if pub is None:
+            logger.warning("emergency_resolve: unknown robot_id '%s'", robot_id)
+            return False
+        pub.publish(Empty())
+        logger.info("published /%s/emergency_resolve", robot_id)
+        return True
 
     def _on_robot_state(self, msg: RobotState) -> None:
         self.registry.update_from_ros_state(msg)

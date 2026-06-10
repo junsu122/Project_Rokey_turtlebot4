@@ -235,16 +235,18 @@ class DetectorNode(Node):
             if self._confirm_counts[et] < 2:
                 continue
 
-            active = self._active_events.get(et)
-            if active is not None:
-                ax, ay, at = active
-                elapsed = now_ts - at
-                if elapsed < 600.0:
-                    x, y = ev['obj_x'], ev['obj_y']
-                    if x is None or ax is None:
-                        continue
-                    if math.hypot(x - ax, y - ay) < 1.0:
-                        continue
+            # SUSPICIOUS_PERSON은 dedup 없이 매 confirm마다 발행 — handler가 위치 추적에 사용
+            if et != 'SUSPICIOUS_PERSON':
+                active = self._active_events.get(et)
+                if active is not None:
+                    ax, ay, at = active
+                    elapsed = now_ts - at
+                    if elapsed < 600.0:
+                        x, y = ev['obj_x'], ev['obj_y']
+                        if x is None or ax is None:
+                            continue
+                        if math.hypot(x - ax, y - ay) < 1.0:
+                            continue
 
             confirmed.append(ev)
             self._active_events[et] = (ev['obj_x'], ev['obj_y'], now_ts)

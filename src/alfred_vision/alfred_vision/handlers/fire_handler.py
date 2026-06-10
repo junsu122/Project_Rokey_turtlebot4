@@ -78,7 +78,7 @@ class FireHandler:
             self._node.get_logger().info(f'[{self._ns}] 비상구 도착 → monitor 조치완료 대기')
 
     def _cb_emergency_resolve(self, _msg):
-        if not self._active:
+        if not self._active or not self._at_exit:
             return
         self._node.get_logger().info(f'[{self._ns}] 조치완료 수신 → 패트롤 복귀')
         self._pub_resume.publish(Empty())

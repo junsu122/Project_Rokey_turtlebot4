@@ -72,6 +72,29 @@
   .vbtn:disabled{opacity:.5;cursor:not-allowed}
   .vbtn:hover{filter:brightness(1.1)}
   .vmeta{font-size:11px;color:var(--muted);margin-top:8px}
+  /* DB 검색 — 엑셀식 오토필터 테이블 */
+  .xl-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .xl-toolbar select,.xl-toolbar input{background:#0e1524;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 9px;font:inherit}
+  .xl-toolbar input{flex:1;min-width:160px}
+  .xl-wrap{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  table.xl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  table.xl th,table.xl td{border-bottom:1px solid var(--line);padding:6px 9px;text-align:left;white-space:nowrap}
+  table.xl thead th{position:sticky;top:0;z-index:2;background:#0e1524;color:var(--muted);font-weight:600;user-select:none}
+  table.xl th .lab{cursor:pointer}.xl th .srt{margin-left:4px;color:var(--blue);font-size:11px}
+  table.xl th .flt{margin-left:6px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:5px;
+    padding:0 5px;font-size:11px;cursor:pointer;line-height:1.6}
+  table.xl th .flt:hover{color:var(--text);border-color:var(--blue)}
+  table.xl th .flt.on{background:var(--blue);border-color:var(--blue);color:#07111f}
+  table.xl tbody tr:hover{background:rgba(96,165,250,.07)}
+  .xl-pop{position:absolute;z-index:50;display:none;width:240px;background:#0e1524;border:1px solid var(--line);
+    border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.5);padding:10px}
+  .xl-pop.show{display:block}
+  .xl-pop input.s{width:100%;background:#182235;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 8px;margin-bottom:8px}
+  .xl-pop .list{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:6px}
+  .xl-pop label{display:flex;align-items:center;gap:7px;padding:3px 4px;font-size:12.5px;cursor:pointer;border-radius:5px}
+  .xl-pop label:hover{background:rgba(96,165,250,.1)}.xl-pop label.all{font-weight:700;border-bottom:1px solid var(--line);margin-bottom:4px;padding-bottom:6px}
+  .xl-pop .acts{display:flex;gap:6px;margin-top:9px}
+  .xl-pop .acts .btn{flex:1;text-align:center;font-size:12.5px;padding:6px}
 </style>
 </head>
 <body>
@@ -173,16 +196,37 @@
 
   <div id="tab-search" class="tabpanel">
     <section>
-      <h2>DB 검색</h2>
-      <div class="search">
-        <input id="q" placeholder="로봇, 상태, 이벤트 검색">
-        <select id="kind">
-          <option value="all">전체</option>
+      <h2>검색 통계</h2>
+      <div id="searchStatsKpis" class="grid kpi-grid"></div>
+    </section>
+    <div class="grid two">
+      <section>
+        <h2>상태 분포 (robot_status_log)</h2>
+        <div id="statusDist"></div>
+      </section>
+      <section>
+        <h2>이벤트 통계</h2>
+        <div id="eventDist"></div>
+      </section>
+    </div>
+    <section>
+      <h2>로봇별 요약</h2>
+      <div id="robotStatsTable"></div>
+    </section>
+    <section>
+      <h2>DB 검색 (엑셀 필터)</h2>
+      <div class="xl-toolbar">
+        <select id="xlDataset">
           <option value="events">이벤트</option>
-          <option value="status">상태</option>
+          <option value="status">상태 로그</option>
         </select>
+        <input id="xlQuick" placeholder="빠른 검색 — 모든 열에서 찾기">
+        <button class="btn" id="xlReset">필터 초기화</button>
+        <button class="btn" id="xlReload">새로고침</button>
+        <span class="muted" id="xlCount"></span>
       </div>
-      <div id="searchResult"></div>
+      <div class="xl-wrap"><table id="xlTable" class="xl"></table></div>
+      <div id="xlFilterPop" class="xl-pop"></div>
     </section>
   </div>
 
@@ -201,6 +245,7 @@
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time = v => v ? new Date(v).toLocaleString() : '-';
+const dateOnly = v => v ? new Date(v).toLocaleDateString() : '-';   // 년/월/일만(시간 제외)
 let latest = {robots:[], events:[], active:[], stats:{}, sys:{}, robotLog:{log:[]}};
 
 document.querySelectorAll('.tab').forEach(btn=>{
@@ -210,6 +255,7 @@ document.querySelectorAll('.tab').forEach(btn=>{
     btn.classList.add('on');
     $(`tab-${btn.dataset.tab}`).classList.add('on');
     if(btn.dataset.tab==='video') buildVideoGrid();
+    if(btn.dataset.tab==='search') xlInit();
   });
 });
 
@@ -222,6 +268,11 @@ async function j(path){
 function eventName(e){
   const type = e.event_type || 'EVENT';
   return e.event_class ? `${type}/${e.event_class}` : type;
+}
+const EVENT_KO = {FIRE:'화재', EMERGENCY_PATIENT:'긴급 환자', SUSPICIOUS_PERSON:'거수자', LOST_ITEM:'분실물'};
+function eventKo(e){   // 이벤트 타입 → 한글 라벨 (클래스 있으면 괄호로 덧붙임)
+  const ko = EVENT_KO[e.event_type] || e.event_type || '이벤트';
+  return e.event_class ? `${ko} (${e.event_class})` : ko;
 }
 function badgeForState(s){
   if(['ERROR','EMERGENCY'].includes(s)) return 'red';
@@ -271,6 +322,33 @@ function renderOps(stats){
   $('eventBreakdown').innerHTML = `<table><tr><th>이벤트</th><th>건수</th><th>class</th></tr>` +
     eventRows.map(([code,name])=>`<tr><td>${name}</td><td>${by[code]||0}</td><td class="muted">${Object.entries(cls).map(([k,v])=>`${esc(k)} ${v}`).join(' · ') || '-'}</td></tr>`).join('') +
     `</table>`;
+}
+function distTable(head, obj){
+  const rows = Object.entries(obj||{}).sort((a,b)=>b[1]-a[1]);
+  if(!rows.length) return '<div class="muted">데이터 없음</div>';
+  const max = Math.max(1, ...rows.map(r=>r[1]));
+  return `<table><tr><th>${head}</th><th>건수</th><th>비율</th></tr>` +
+    rows.map(([n,c])=>`<tr><td>${esc(String(n))}</td><td>${c}</td><td><div class="bar"><i style="width:${(c/max*100).toFixed(1)}%"></i></div></td></tr>`).join('') +
+    `</table>`;
+}
+function renderSearchStats(ss){
+  const st = ss.status||{}, ev = ss.events||{}, robots = ss.robots||[];
+  const online = robots.filter(r=>r.online).length;
+  $('searchStatsKpis').innerHTML =
+    kpi('로봇 수', robots.length, 'latest_robot_status') +
+    kpi('온라인', `${online}/${robots.length}`, 'last_seen ≤ 임계') +
+    kpi('상태 로그', st.total||0, 'robot_status_log 행') +
+    kpi('이벤트 총', ev.total||0, 'events') +
+    kpi('미조치 이벤트', ev.active||0, 'resolved=0', (ev.active? 'warn':''));
+  $('statusDist').innerHTML = distTable('상태', st.by_state);
+  const evClass = ev.by_class||{};
+  $('eventDist').innerHTML = distTable('이벤트 타입', ev.by_type) +
+    (Object.keys(evClass).length ? `<div class="muted" style="margin-top:6px">class: ${Object.entries(evClass).map(([k,v])=>`${esc(k)} ${v}`).join(' · ')}</div>` : '');
+  $('robotStatsTable').innerHTML = robots.length
+    ? `<table><tr><th>로봇</th><th>상태</th><th>배터리</th><th>온라인</th><th>상태로그</th><th>이벤트</th></tr>` +
+      robots.map(r=>`<tr><td>${esc(r.robot_id||'')}</td><td>${esc(r.state||'-')}</td><td>${r.battery??'-'}%</td><td>${r.online?'🟢':'⚫'}</td><td>${r.log_count||0}</td><td>${r.event_count||0}</td></tr>`).join('') +
+      `</table>`
+    : '<div class="muted">데이터 없음</div>';
 }
 function renderRobotCards(robots){
   const html = robots.length ? robots.map(r=>{
@@ -366,27 +444,117 @@ async function resolveEvent(id){
   await fetch(`/api/events/${id}/resolve`, {method:'POST', credentials:'same-origin'});
   await load();
 }
-async function search(){
-  const q=$('q').value.trim(), kind=$('kind').value;
-  if(!q){ $('searchResult').innerHTML=''; return; }
-  const d = await j(`/api/search?q=${encodeURIComponent(q)}&kind=${kind}`);
-  const ev = d.results?.events || [], st = d.results?.status || [];
-  let html = '';
-  if(ev.length) html += '<h2>이벤트</h2><table>' + ev.map(e=>`<tr><td>${esc(eventName(e))}</td><td>${esc(e.robot_id)}</td><td>${time(e.at)}</td></tr>`).join('') + '</table>';
-  if(st.length) html += '<h2>상태</h2><table>' + st.map(s=>`<tr><td>${esc(s.robot_id)}</td><td>${esc(s.prev_state)} -> ${esc(s.state)}</td><td>${time(s.at)}</td></tr>`).join('') + '</table>';
-  $('searchResult').innerHTML = html || '<div class="empty">검색 결과 없음</div>';
+// ── DB 검색: 엑셀식 오토필터 테이블 (정렬 + 열별 값 체크박스 필터 + 빠른검색) ──
+const XL_COLS = {
+  events: [
+    {k:'id', label:'ID', num:true},
+    {k:'event_type', label:'타입', fmt:(v,row)=>eventKo(row)},
+    {k:'robot_id', label:'로봇'},
+    {k:'floor', label:'층'},
+    {k:'resolved', label:'처리', fmt:v=>v?'완료':'활성'},
+    {k:'at', label:'시각', fmt:dateOnly},
+  ],
+  status: [
+    {k:'at', label:'시각', fmt:dateOnly},
+    {k:'robot_id', label:'로봇'},
+    {k:'prev_state', label:'이전상태'},
+    {k:'state', label:'상태'},
+    {k:'task_status', label:'태스크'},
+    {k:'battery', label:'배터리', num:true},
+    {k:'x', label:'x', num:true},
+    {k:'y', label:'y', num:true},
+  ],
+};
+const xl = { ds:'events', data:{events:null, status:null}, filters:{}, sort:{k:null,dir:1}, q:'' };
+const xlCols = ()=> XL_COLS[xl.ds];
+const xlCell = (c,row)=> { const v=row[c.k]; return c.fmt ? c.fmt(v, row) : String(v ?? ''); };
+async function xlLoad(force){
+  if(!force && xl.data[xl.ds]) return;
+  if(force || !xl.data.events){ xl.data.events = await j('/api/events?limit=1000'); }
+  if(force || !xl.data.status){ const r = await j('/api/robot_log?limit=1000'); xl.data.status = r.log || []; }
 }
-let timer;
-$('q').addEventListener('input', ()=>{clearTimeout(timer); timer=setTimeout(search,250);});
-$('kind').addEventListener('change', search);
+async function xlInit(){ try{ await xlLoad(false); xlRender(); }catch(e){ $('xlTable').innerHTML='<tbody><tr><td class="empty">불러오기 실패</td></tr></tbody>'; } }
+function xlVisible(){
+  const cols = xlCols();
+  let rows = (xl.data[xl.ds] || []).filter(row=>{
+    for(const c of cols){ const f=xl.filters[c.k]; if(f && f.size && !f.has(xlCell(c,row))) return false; }
+    if(xl.q){ const q=xl.q.toLowerCase(); if(!cols.some(c=>xlCell(c,row).toLowerCase().includes(q))) return false; }
+    return true;
+  });
+  if(xl.sort.k){
+    const c = cols.find(x=>x.k===xl.sort.k), d=xl.sort.dir;
+    rows = rows.slice().sort((a,b)=>{
+      let va=a[c.k], vb=b[c.k];
+      if(c.num){ va=parseFloat(va); vb=parseFloat(vb); va=isNaN(va)?-Infinity:va; vb=isNaN(vb)?-Infinity:vb; return (va-vb)*d; }
+      return String(va??'').localeCompare(String(vb??''),'ko')*d;
+    });
+  }
+  return rows;
+}
+function xlRender(){
+  const cols = xlCols(), rows = xlVisible(), total = (xl.data[xl.ds]||[]).length;
+  const thead = '<thead><tr>' + cols.map(c=>{
+    const active = xl.filters[c.k] && xl.filters[c.k].size;
+    const arrow = xl.sort.k===c.k ? (xl.sort.dir>0?'▲':'▼') : '';
+    return `<th data-k="${c.k}"><span class="lab">${esc(c.label)}</span><span class="srt">${arrow}</span>`+
+      `<button class="flt ${active?'on':''}" data-k="${c.k}" title="필터">▼</button></th>`;
+  }).join('') + '</tr></thead>';
+  const tbody = '<tbody>' + (rows.length ? rows.map(row=>'<tr>' +
+      cols.map(c=>`<td>${esc(xlCell(c,row))}</td>`).join('') + '</tr>').join('')
+    : `<tr><td class="empty" colspan="${cols.length}">조건에 맞는 행 없음</td></tr>`) + '</tbody>';
+  $('xlTable').innerHTML = thead + tbody;
+  $('xlCount').textContent = `표시 ${rows.length} / 전체 ${total}`;
+  $('xlTable').querySelectorAll('.lab').forEach(el=>el.addEventListener('click',()=>{
+    const k = el.closest('th').dataset.k;
+    if(xl.sort.k===k) xl.sort.dir*=-1; else { xl.sort.k=k; xl.sort.dir=1; }
+    xlRender();
+  }));
+  $('xlTable').querySelectorAll('.flt').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); xlOpenFilter(b.dataset.k, b); }));
+}
+function xlOpenFilter(k, btn){
+  const cols = xlCols(), c = cols.find(x=>x.k===k);
+  const all = [...new Set((xl.data[xl.ds]||[]).map(r=>xlCell(c,r)))].sort((a,b)=>a.localeCompare(b,'ko'));
+  const sel = xl.filters[k];                       // 없으면 = 전체 선택 상태
+  const isOn = v => !sel || !sel.size || sel.has(v);
+  const pop = $('xlFilterPop');
+  pop.innerHTML =
+    `<input class="s" placeholder="값 검색…">`+
+    `<div class="list"><label class="all"><input type="checkbox" id="xlAll" ${(!sel||!sel.size)?'checked':''}> (모두 선택)</label>`+
+    all.map(v=>`<label data-v="${esc(v)}"><input type="checkbox" class="xlv" value="${esc(v)}" ${isOn(v)?'checked':''}> ${esc(v||'(빈값)')}</label>`).join('')+
+    `</div><div class="acts"><button class="btn" id="xlApply">적용</button><button class="btn" id="xlCancel">취소</button></div>`;
+  const r = btn.getBoundingClientRect();
+  pop.style.left = (window.scrollX + Math.min(r.left, window.innerWidth-260)) + 'px';
+  pop.style.top  = (window.scrollY + r.bottom + 4) + 'px';
+  pop.classList.add('show');
+  pop.querySelector('.s').addEventListener('input', ev=>{
+    const q=ev.target.value.toLowerCase();
+    pop.querySelectorAll('.list label[data-v]').forEach(l=>{ l.style.display = l.dataset.v.toLowerCase().includes(q)?'':'none'; });
+  });
+  $('xlAll').addEventListener('change', ev=>{ pop.querySelectorAll('.xlv').forEach(cb=>{ if(cb.closest('label').style.display!=='none') cb.checked=ev.target.checked; }); });
+  $('xlApply').addEventListener('click', ()=>{
+    const checked = [...pop.querySelectorAll('.xlv')].filter(cb=>cb.checked).map(cb=>cb.value);
+    if(checked.length === all.length) delete xl.filters[k];   // 전부 선택 = 필터 해제
+    else xl.filters[k] = new Set(checked);
+    xlCloseFilter(); xlRender();
+  });
+  $('xlCancel').addEventListener('click', xlCloseFilter);
+}
+function xlCloseFilter(){ $('xlFilterPop').classList.remove('show'); }
+document.addEventListener('click', e=>{ if(!e.target.closest('#xlFilterPop') && !e.target.closest('.flt')) xlCloseFilter(); });
+$('xlDataset').addEventListener('change', e=>{ xl.ds=e.target.value; xl.filters={}; xl.sort={k:null,dir:1}; xlCloseFilter(); xlRender(); });
+let xlTimer;
+$('xlQuick').addEventListener('input', e=>{ clearTimeout(xlTimer); xlTimer=setTimeout(()=>{ xl.q=e.target.value.trim(); xlRender(); }, 200); });
+$('xlReset').addEventListener('click', ()=>{ xl.filters={}; xl.sort={k:null,dir:1}; xl.q=''; $('xlQuick').value=''; xlCloseFilter(); xlRender(); });
+$('xlReload').addEventListener('click', async ()=>{ await xlLoad(true); xlRender(); });
 async function load(){
   try{
-    const [robots, events, active, stats, sys, robotLog] = await Promise.all([
-      j('/api/robots'), j('/api/events?limit=50'), j('/api/events?active=1&limit=30'), j('/api/stats'), j('/api/system'), j('/api/robot_log?limit=200')
+    const [robots, events, active, stats, sys, robotLog, searchStats] = await Promise.all([
+      j('/api/robots'), j('/api/events?limit=50'), j('/api/events?active=1&limit=30'), j('/api/stats'), j('/api/system'), j('/api/robot_log?limit=200'), j('/api/search_stats')
     ]);
-    latest = {robots, events, active, stats, sys, robotLog};
+    latest = {robots, events, active, stats, sys, robotLog, searchStats};
     renderSummary(stats, sys);
     renderOps(stats);
+    renderSearchStats(searchStats);
     renderRobotCards(robots);
     renderOverviewRobotStatus(robots);
     renderRobotLog(robotLog);
