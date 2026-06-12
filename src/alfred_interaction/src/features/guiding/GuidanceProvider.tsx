@@ -6,8 +6,12 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { floorLevel, kioskConfig } from '@/config';
-import type { Facility, NavigationSession } from '@/core/domain';
+import { env, floorLevel, kioskConfig } from '@/config';
+import {
+  localizedFacilityName,
+  type Facility,
+  type NavigationSession,
+} from '@/core/domain';
 import { useLanguage } from '@/core/i18n';
 import { useKioskDispatch, useKioskState } from '@/core/kiosk';
 import {
@@ -54,10 +58,7 @@ export function GuidanceProvider({ children }: { children: ReactNode }) {
       handleRef.current?.cancel();
       clearArrivedTimer();
 
-      const plan = navigation.planRoute(destination, kioskConfig.currentFloorId);
-
       // IF-01: tell the FMS a destination was confirmed (the server boundary).
-      // The local navigation below only drives the on-screen escort animation.
       if (destination.poiId) {
         const request = buildEscortRequest({
           robotId: kioskConfig.robotId,
@@ -67,11 +68,16 @@ export function GuidanceProvider({ children }: { children: ReactNode }) {
           },
           origin: {
             floor: floorLevel(kioskConfig.currentFloorId),
-            pose: kioskConfig.originPose,
+            // VI(blind, 웨이크워드)는 로봇 대기 pose에서 만나고, 일반(터치 시설검색·
+            // 음성검색)은 키오스크 앞(x=-7.0)에서 픽업 — profile과 같은 조건으로 분기.
+            pose:
+              mode === 'visually_impaired'
+                ? kioskConfig.originPose
+                : kioskConfig.originPoseNormal,
           },
-          // VI mode (wake word) → profile VISUALLY_IMPAIRED (requirement).
+          // VI mode (wake word) → profile blind (requirement).
           customer: defaultCustomer(
-            mode === 'visually_impaired' ? 'VISUALLY_IMPAIRED' : 'GENERAL',
+            mode === 'visually_impaired' ? 'blind' : 'normal',
             language,
           ),
         });
@@ -82,6 +88,23 @@ export function GuidanceProvider({ children }: { children: ReactNode }) {
         console.error('[guideTo] facility has no poiId; skipping IF-01', destination);
       }
 
+      // Real robot connected: it owns the escort and drives the guiding screen via
+      // inbound /robotN/ui_state (ESCORT_1F → … → ESCORT_COMPLETED). Show an
+      // immediate "준비 중" screen for instant feedback, then let the robot's state
+      // take over. No local simulation — the screen never self-completes.
+      if (env.robotDrivesUi) {
+        dispatch({
+          type: 'ROBOT_ESCORT',
+          destinationName: localizedFacilityName(destination, language),
+          ratio: 0,
+          preparing: true,
+        });
+        return;
+      }
+
+      // Offline / demo (mocks, no rosbridge): simulate the escort locally so the UI
+      // is usable without a robot. The mock drives progress and auto-returns.
+      const plan = navigation.planRoute(destination, kioskConfig.currentFloorId);
       const session: NavigationSession = {
         plan,
         progress: { phase: 'starting', ratio: 0 },

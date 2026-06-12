@@ -1,5 +1,5 @@
-import { useCallback, useEffect, type ReactNode } from 'react';
-import { getFacilityByPoiId } from '@/config';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { getFacilityByPoiId, kioskConfig } from '@/config';
 import { localizedFacilityName } from '@/core/domain';
 import { useLanguage, type Language } from '@/core/i18n';
 import {
@@ -30,25 +30,50 @@ export function RobotStateProvider({ children }: { children: ReactNode }) {
   const dispatch = useKioskDispatch();
   const { language } = useLanguage();
   const { robotState } = useServices();
+  /** Holds the "도착했어요!" screen, then returns to patrol (ESCORT_COMPLETED). */
+  const arrivedTimerRef = useRef<number | null>(null);
+  const clearArrivedTimer = useCallback(() => {
+    if (arrivedTimerRef.current !== null) {
+      window.clearTimeout(arrivedTimerRef.current);
+      arrivedTimerRef.current = null;
+    }
+  }, []);
 
   const handleStatus = useCallback(
     (msg: RobotStatusMessage) => {
       if (msg.state === 'ESCORT_1F' || msg.state === 'ESCORT_2F') {
+        clearArrivedTimer(); // a fresh escort supersedes any pending arrival hold
         dispatch({
           type: 'ROBOT_ESCORT',
           destinationName: resolveDestinationName(msg.destination, language),
           ratio: msg.progress,
+          // The robot reports it's actively escorting → leave "preparing".
+          preparing: false,
         });
+        return;
+      }
+      // ESCORT_COMPLETED → show "도착했어요!" briefly, then return to patrol. The
+      // bridge publishes PATROL right after; it's ignored during this hold.
+      if (msg.state === 'ESCORT_COMPLETED') {
+        dispatch({ type: 'ROBOT_ARRIVED' });
+        clearArrivedTimer();
+        arrivedTimerRef.current = window.setTimeout(
+          () => dispatch({ type: 'END_GUIDING' }),
+          kioskConfig.arrivedHoldMs,
+        );
         return;
       }
       const event = robotStatusToEvent(msg);
       if (event) dispatch(event);
     },
-    [dispatch, language],
+    [dispatch, language, clearArrivedTimer],
   );
 
   // Real source: ros_bridge robot status → screen.
   useEffect(() => robotState.onState(handleStatus), [robotState, handleStatus]);
+
+  // Clear the arrival-hold timer on unmount.
+  useEffect(() => () => clearArrivedTimer(), [clearArrivedTimer]);
 
   // Manual test hook on window. Accepts a bare state string or a full message.
   useEffect(() => {

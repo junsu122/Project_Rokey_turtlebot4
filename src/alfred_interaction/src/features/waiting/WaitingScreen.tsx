@@ -19,10 +19,16 @@ export function WaitingScreen() {
   const toFloor = waiting?.toFloorId
     ? getFloor(waiting.toFloorId)?.shortName ?? ''
     : '';
+  const handover = waiting?.kind === 'handover';
   const caption =
     waiting?.kind === 'transfer'
       ? strings.waiting.transfer(toFloor)
-      : strings.waiting.caption;
+      : handover
+        ? strings.waiting.handover
+        : strings.waiting.caption;
+  const subtitle = handover
+    ? strings.waiting.handoverSub
+    : strings.waiting.subtitle;
 
   useEffect(() => {
     if (announcedRef.current) return;
@@ -33,7 +39,7 @@ export function WaitingScreen() {
   return (
     <ScreenFrame tone="dark">
       <div className={styles.body}>
-        <RobotFace caption={caption} subtitle={strings.waiting.subtitle} />
+        <RobotFace caption={caption} subtitle={subtitle} />
       </div>
     </ScreenFrame>
   );

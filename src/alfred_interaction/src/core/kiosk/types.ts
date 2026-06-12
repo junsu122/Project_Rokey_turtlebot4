@@ -21,7 +21,12 @@ export type KioskScreen =
  * and the user should move to `toFloorId` (the cross-floor handoff).
  */
 export interface WaitingInfo {
-  kind: 'waiting' | 'transfer';
+  /**
+   * `waiting` = robot parked, waiting for the user. `transfer` = this floor's
+   * escort is done, move to `toFloorId`. `handover` = robot is driving to the
+   * 2F handover/pickup point (GO_HANDOVER, just before WAITING_2F).
+   */
+  kind: 'waiting' | 'transfer' | 'handover';
   /** For 'transfer': the floor id the user should move to (e.g. 'F2'). */
   toFloorId?: string;
 }
@@ -32,6 +37,18 @@ export interface RobotEscortInfo {
   destinationName: string | null;
   /** Progress 0..1 for the bar. */
   ratio: number;
+  /**
+   * True between the kiosk confirming a destination (IF-01 sent) and the robot
+   * reporting ESCORT_1F/2F — shows a "준비 중" screen. Cleared once the robot's
+   * inbound state takes over.
+   */
+  preparing: boolean;
+  /**
+   * True after the robot reports ESCORT_COMPLETED — shows the "도착했어요!" screen
+   * briefly, then a timer (RobotStateProvider) returns to patrol. A trailing
+   * PATROL is ignored while this holds (see EXIT_ROBOT_SCREEN).
+   */
+  arrived: boolean;
 }
 
 /**
@@ -75,5 +92,12 @@ export type KioskEvent =
   | { type: 'CLEAR_ALERT' } // alert → patrol (staff dismiss)
   | { type: 'ENTER_CHARGING'; battery?: number } // robot DOCKING / UNDOCKING → charging
   | { type: 'ENTER_WAITING'; info: WaitingInfo } // robot WAITING / FINISHED → waiting
-  | { type: 'ROBOT_ESCORT'; destinationName?: string | null; ratio?: number } // ESCORT_* → guiding
+  | {
+      type: 'ROBOT_ESCORT';
+      destinationName?: string | null;
+      ratio?: number;
+      /** Kiosk-initiated, robot not yet started → show "준비 중". */
+      preparing?: boolean;
+    } // ESCORT_* → guiding
+  | { type: 'ROBOT_ARRIVED' } // ESCORT_COMPLETED → "도착했어요!" hold → patrol
   | { type: 'EXIT_ROBOT_SCREEN' }; // robot screen → patrol (e.g. robot PATROL)

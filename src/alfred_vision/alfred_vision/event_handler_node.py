@@ -28,7 +28,7 @@ class EventHandlerNode(Node):
         self._handlers = {
             'FIRE':              FireHandler(self, ns, exit_poi, has_patrol),
             'INJURED_PERSON':    InjuredHandler(self, ns, self._tf_buffer, has_patrol),
-            'SUSPICIOUS_PERSON': SuspiciousHandler(self, ns, self._tf_buffer, has_patrol),
+            'SUSPICIOUS_PERSON': SuspiciousHandler(self, ns),
             'LOST_ITEM':         LostItemHandler(self, ns),
         }
 

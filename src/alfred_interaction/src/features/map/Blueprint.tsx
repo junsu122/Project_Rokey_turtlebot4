@@ -1,7 +1,12 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import { BLUEPRINT, messages } from '@/config';
 import { isSelectableFacility, localizedFacilityName } from '@/core/domain';
-import type { BlueprintDecoration, Facility, Floor } from '@/core/domain';
+import type {
+  BlueprintDecoration,
+  BlueprintRoom,
+  Facility,
+  Floor,
+} from '@/core/domain';
 import type { Language } from '@/core/i18n';
 import { cx } from '@/core/utils';
 import styles from './Blueprint.module.css';
@@ -12,6 +17,8 @@ interface BlueprintProps {
   onSelect: (facility: Facility) => void;
   selectedId?: string;
   language: Language;
+  /** 로봇 실시간 현위치 비율 {u,v} ∈ [0,1] (없으면 점 미표시). */
+  here?: { u: number; v: number } | null;
 }
 
 /**
@@ -25,6 +32,7 @@ export function Blueprint({
   onSelect,
   selectedId,
   language,
+  here,
 }: BlueprintProps) {
   const { outline } = floor;
   const trainLabel = messages[language].map.train;
@@ -81,7 +89,32 @@ export function Blueprint({
           language={language}
         />
       ))}
+
+      {here && <HereDot outline={floor.outline} u={here.u} v={here.v} />}
     </svg>
+  );
+}
+
+/**
+ * 로봇 실시간 현위치 — 점멸하는 빨간 점. outline 사각형 안에서 비율 {u,v}로 위치를
+ * 잡는다(맵 보정: config/mapCalibration). 펄스 링이 퍼지며 코어가 깜빡인다.
+ */
+function HereDot({
+  outline,
+  u,
+  v,
+}: {
+  outline: BlueprintRoom;
+  u: number;
+  v: number;
+}) {
+  const cx = outline.x + u * outline.w;
+  const cy = outline.y + v * outline.h;
+  return (
+    <g className={styles.here} aria-hidden="true">
+      <circle className={styles.herePulse} cx={cx} cy={cy} r="2.5" />
+      <circle className={styles.hereCore} cx={cx} cy={cy} r="2.4" />
+    </g>
   );
 }
 

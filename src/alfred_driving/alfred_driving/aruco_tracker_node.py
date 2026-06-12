@@ -141,34 +141,48 @@ class ArucoTrackerNode(Node):
             self._width, self._height, horizontal_fov_deg, camera_matrix_param)
         self._dist_coeffs = make_dist_coeffs(dist_coeffs_param)
 
-        self._cap = cv2.VideoCapture(self._camera_index, cv2.CAP_V4L2)
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        self._cap.set(cv2.CAP_PROP_FPS, self._fps)
-
-        if not self._cap.isOpened():
-            raise RuntimeError(f'Cannot open camera index: {self._camera_index}')
-
-        actual_width = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        actual_fps = self._cap.get(cv2.CAP_PROP_FPS)
+        self._cap = None
+        self._frame_timer = None
 
         self._marker_pub = self.create_publisher(String, '/aruco_tracker/markers', 10)
         self._user_pub = self.create_publisher(String, '/aruco_tracker/user', 10)
         self._image_pub = self.create_publisher(Image, '/aruco_tracker/image_debug', 10)
-        self.create_timer(1.0 / self._fps, self._process_frame)
 
         if len(camera_matrix_param) != 9:
             self.get_logger().warn(
                 'camera_matrix is not set. Using approximate FOV calibration; '
                 'distance is good for rough testing only.'
             )
+
+        self._open_timer = self.create_timer(0.5, self._open_camera)
+        self.get_logger().info(f'ArUco tracker ready. Opening camera {self._camera_index}...')
+
+    def _open_camera(self):
+        """__init__ 직후 0.5 초 뒤에 한 번만 실행된다. nav2 활성화와 겹치지 않도록
+        VideoCapture 초기화를 __init__ 밖으로 꺼냈다."""
+        self._open_timer.cancel()
+
+        cap = cv2.VideoCapture(self._camera_index, cv2.CAP_V4L2)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+        cap.set(cv2.CAP_PROP_FPS, self._fps)
+
+        if not cap.isOpened():
+            self.get_logger().error(
+                f'Cannot open camera index {self._camera_index}. Retrying in 3 s.'
+            )
+            self._open_timer = self.create_timer(3.0, self._open_camera)
+            return
+
+        self._cap = cap
+        actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        actual_fps = cap.get(cv2.CAP_PROP_FPS)
         self.get_logger().info(
-            f'ArUco tracker ready: camera={self._camera_index}, '
-            f'{actual_width}x{actual_height}@{actual_fps:.0f}fps, '
-            f'dictionary={dictionary_name}, marker_size={self._marker_size_m:.3f}m, '
-            f'ids={sorted(self._valid_marker_ids)}'
+            f'Camera opened: {actual_width}x{actual_height}@{actual_fps:.0f}fps  '
+            f'index={self._camera_index}'
         )
+        self._frame_timer = self.create_timer(1.0 / self._fps, self._process_frame)
 
     def _make_dictionary(self, dictionary_name: str):
         """OpenCV에 등록된 ArUco dictionary 객체를 만든다."""
@@ -205,6 +219,8 @@ class ArucoTrackerNode(Node):
         5. 사용자 마커 선택
         6. JSON 결과와 debug image 발행
         """
+        if self._cap is None:
+            return
         ok, frame = self._cap.read()
         stamp = self.get_clock().now().to_msg()
         if not ok:
@@ -344,7 +360,7 @@ class ArucoTrackerNode(Node):
 
     def destroy_node(self):
         """노드 종료 시 카메라와 OpenCV 창 자원을 정리한다."""
-        if hasattr(self, '_cap'):
+        if self._cap is not None:
             self._cap.release()
         if self._show_window:
             cv2.destroyAllWindows()
@@ -363,7 +379,8 @@ def main():
     finally:
         if node is not None:
             node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

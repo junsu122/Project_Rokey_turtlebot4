@@ -100,7 +100,7 @@ class ScenarioManagerNode(Node):
         if request_type == 'CANCEL':
             self._cancel_scenario(payload)
             return
-        if request_type not in ('ESCORT', 'ESCORTING'):
+        if request_type != 'ESCORT':
             self.get_logger().warn(f'Unsupported request_type={request_type}. Ignoring request.')
             return
 

@@ -11,10 +11,10 @@ export type If01RequestType = 'ESCORT' | 'CANCEL' | 'INTERACTING';
 
 /** Drives the robot's motion params / arrival greeting (정의서 §2). */
 export type CustomerProfile =
-  | 'GENERAL'
+  | 'normal'
   | 'ELDERLY'
   | 'FOREIGNER'
-  | 'VISUALLY_IMPAIRED';
+  | 'blind';
 
 export interface If01Pose {
   x: number;
@@ -90,11 +90,11 @@ export interface InteractingRequestInput {
 }
 
 /**
- * A fresh anonymous customer. `profile` is VISUALLY_IMPAIRED in the wake-word
- * voice (VI) mode, GENERAL otherwise; `language` is the user's UI language.
+ * A fresh anonymous customer. `profile` is blind in the wake-word
+ * voice (VI) mode, normal otherwise; `language` is the user's UI language.
  */
 export function defaultCustomer(
-  profile: CustomerProfile = 'GENERAL',
+  profile: CustomerProfile = 'normal',
   language = 'ko',
 ): If01Customer {
   return { customer_id: makeId('C'), profile, language };

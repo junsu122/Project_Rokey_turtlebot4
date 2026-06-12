@@ -52,7 +52,6 @@ class DetectorNode(Node):
         self.tf_buffer   = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # OAK-D는 BEST_EFFORT QoS로 publish — 맞춰줘야 수신 가능
         qos_be = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
         self._lock            = threading.Lock()
@@ -62,8 +61,8 @@ class DetectorNode(Node):
         self._first_frame     = True
         self._last_infer_time = 0.0
 
-        self._confirm_counts = {}
-        self._active_events  = {}
+        self._confirm_counts  = {}
+        self._active_events   = {}
 
         self.create_subscription(
             CameraInfo,
@@ -81,8 +80,14 @@ class DetectorNode(Node):
         ts = ApproximateTimeSynchronizer([rgb_sub, depth_sub], queue_size=10, slop=0.1)
         ts.registerCallback(self._cb_synced)
 
-        self._pub_event = self.create_publisher(String, f'{self.ns}/detection/info',  10)
-        self._pub_img   = self.create_publisher(Image,  f'{self.ns}/detection/image', 10)
+        self._pub_event    = self.create_publisher(String, f'{self.ns}/detection/info',         10)
+        self._pub_img      = self.create_publisher(Image,  f'{self.ns}/detection/image',        10)
+
+        from std_msgs.msg import Empty
+        self.create_subscription(Empty, f'{self.ns}/emergency_resolve',
+                                 self._cb_emergency_resolve, 10)
+        self.create_subscription(String, '/astra/detection/info',
+                                 self._cb_astra, 10)
 
         self.get_logger().info(f'[{self.ns}] 구독/퍼블리시 설정 완료')
 
@@ -103,7 +108,6 @@ class DetectorNode(Node):
             buf   = np.frombuffer(rgb_msg.data, dtype=np.uint8)
             frame = cv2.imdecode(buf, cv2.IMREAD_COLOR)
 
-            # compressedDepth 포맷: 앞 12바이트는 헤더 → 제거 후 디코드
             depth_arr = np.frombuffer(bytes(depth_msg.data)[12:], dtype=np.uint8)
             depth = cv2.imdecode(depth_arr, cv2.IMREAD_ANYDEPTH)
 
@@ -116,13 +120,60 @@ class DetectorNode(Node):
                 self._depth        = depth
                 self._camera_frame = depth_msg.header.frame_id
 
-            # 독 근접 시 추론 스킵 — 충전/도킹 중 오탐 방지
             if self._near_dock():
                 return
 
             self._process(frame, rgb_msg.header)
         except Exception as e:
             self.get_logger().error(f'[{self.ns}] 동기화 콜백 오류: {e}')
+
+    def _cb_emergency_resolve(self, _msg):
+        with self._lock:
+            self._active_events.clear()
+        self.get_logger().info(f'[{self.ns}] emergency_resolve → active_events 초기화')
+
+    def _cb_astra(self, msg: String):
+        _ASTRA_CLASSES = {'knife', 'pistol2'}
+        try:
+            data = json.loads(msg.data)
+        except json.JSONDecodeError:
+            return
+        cls = data.get('class', '')
+        if cls not in _ASTRA_CLASSES:
+            return
+        loc = data.get('location', {})
+        x   = loc.get('x')
+        y   = loc.get('y')
+        if x is None or y is None:
+            return
+
+        now_ts = time.monotonic()
+        with self._lock:
+            active = self._active_events.get('SUSPICIOUS_PERSON')
+            is_new = active is None or (now_ts - active[2]) >= 600.0
+            if is_new:
+                self._active_events['SUSPICIOUS_PERSON'] = (x, y, now_ts)
+
+        if is_new:
+            robot_id = ROBOT_ID_MAP.get(self.ns, self.ns.lstrip('/'))
+            floor    = FLOOR_MAP.get(self.ns, 1)
+            payload  = {
+                'msg_id':       str(uuid.uuid4()),
+                'version':      '2.0',
+                'event_type':   'SUSPICIOUS_PERSON',
+                'class':        cls,
+                'robot_id':     robot_id,
+                'confidence':   None,
+                'location':     {'x': x, 'y': y, 'floor': floor},
+                'snapshot_ref': None,
+                'timestamp':    datetime.now(timezone.utc).isoformat(),
+            }
+            out = String()
+            out.data = json.dumps(payload, ensure_ascii=False)
+            self._pub_event.publish(out)
+            self.get_logger().info(f'[{self.ns}] astra 최초 탐지 → SUSPICIOUS_PERSON ({cls}) @ ({x}, {y})')
+        else:
+            self.get_logger().debug(f'[{self.ns}] astra 위치 업데이트 → ({x}, {y})')
 
     def _near_dock(self) -> bool:
         dock_pos = DOCK_POSITIONS.get(self.ns)
@@ -172,19 +223,34 @@ class DetectorNode(Node):
                 x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
                 conf       = float(box.conf[0])
                 cls_name   = self.model.names[int(box.cls[0])]
+
+                self.get_logger().info(
+                    f'[{self.ns}] YOLO 감지: {cls_name} conf={conf:.2f}',
+                    throttle_duration_sec=1.0)
+
+                if cls_name in ('knife', 'pistol2'):
+                    continue  # astra 담당 — OAK-D 무시
+
                 event_type = EVENT_TYPE_MAP.get(cls_name)
 
                 if event_type is None:
+                    self.get_logger().debug(
+                        f'[{self.ns}] EVENT_TYPE_MAP 미등록 클래스: {cls_name}',
+                        throttle_duration_sec=5.0)
                     continue
 
-                # 클래스별 confidence 임계값 적용
                 if conf < CONF_MAP.get(cls_name, CONF_THRESH):
+                    self.get_logger().debug(
+                        f'[{self.ns}] conf 미달 스킵: {cls_name} {conf:.2f} < {CONF_MAP.get(cls_name, CONF_THRESH)}',
+                        throttle_duration_sec=5.0)
                     continue
 
                 cu, cv_ = (x1 + x2) // 2, (y1 + y2) // 2
 
-                # bbox 중심이 화면 상단 30% 이내면 스킵 — 천장/벽 오탐 방지
                 if cv_ < frame.shape[0] * 0.3:
+                    self.get_logger().debug(
+                        f'[{self.ns}] 상단 30% 스킵: {cls_name} cv={cv_}',
+                        throttle_duration_sec=5.0)
                     continue
 
                 obj_x, obj_y = None, None
@@ -228,10 +294,12 @@ class DetectorNode(Node):
                 self._confirm_counts[et] = 0
 
         confirmed = []
-        now_ts = time.monotonic()
+        now_ts    = time.monotonic()
         for ev in events:
             et = ev['event_type']
             self._confirm_counts[et] = self._confirm_counts.get(et, 0) + 1
+            self.get_logger().info(
+                f'[{self.ns}] confirm {et}: {self._confirm_counts[et]}/2 ({ev["class"]} conf={ev["confidence"]})')
             if self._confirm_counts[et] < 2:
                 continue
 

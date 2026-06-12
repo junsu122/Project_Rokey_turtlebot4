@@ -3,7 +3,7 @@
 <package format="3">
   <name>alfred_driving</name>
   <version>0.1.0</version>
-  <description>주행/에스코트 트랙: behavior_node(Robot State 단독 소유) + nav2/localization 설정</description>
+  <description>Web-driven normal/blind person dispatch for robot2/robot4.</description>
   <maintainer email="sunq0726@gmail.com">ROKEY 7기 지능1 Team Alfred</maintainer>
   <license>MIT</license>
 
@@ -16,6 +16,8 @@
   <exec_depend>nav2_msgs</exec_depend>
   <exec_depend>irobot_create_msgs</exec_depend>
   <exec_depend>turtlebot4_navigation</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

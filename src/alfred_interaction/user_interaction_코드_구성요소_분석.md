@@ -108,7 +108,7 @@
 2. **입력**: `guideTo(facility)`, `cancelGuidance()`.
 3. **출력**: `fms.sendRequest(buildEscortRequest{...})`(poiId 있을 때만), `fms.sendRequest(buildCancelRequest)`; `navigation.planRoute/start`; dispatch `START_GUIDING/UPDATE_PROGRESS/END_GUIDING`.
 4. **제어흐름**: `guideTo`: 기존취소→`planRoute`→poiId 있으면 ESCORT 발행(`request_id` 저장)→`START_GUIDING`→`navigation.start`(onProgress→`UPDATE_PROGRESS`; `arrived`면 `arrivedHoldMs` 후 `END_GUIDING`). `cancelGuidance`: navigation 취소+CANCEL 발행+`END_GUIDING`.
-5. **설정**: `kioskConfig.robotId`, `originPose`, `arrivedHoldMs`(2600); `customer.profile`=VI면 `VISUALLY_IMPAIRED`/else `GENERAL`.
+5. **설정**: `kioskConfig.robotId`, `originPose`, `arrivedHoldMs`(2600); `customer.profile`=VI면 `blind`/else `normal`.
 6. **의존**: 받음 ← `MapScreen`·`VoiceScreen`(guideTo), `GuidingScreen`(cancel). 줌 → `FmsService`(/information), `NavigationService`, 상태머신.
 7. **코드/문서 불일치**: 주석 "tell the FMS"지만 FMS 채널은 폐기·실제 rosbridge `/information`. `poiId` 없으면 ESCORT 미발행+`console.error`.
 

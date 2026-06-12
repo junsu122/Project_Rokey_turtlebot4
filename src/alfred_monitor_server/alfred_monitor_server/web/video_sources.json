@@ -1,0 +1,15 @@
+{
+  "_comment": "WebRTC 영상 소스 메타데이터. 미디어는 로봇↔브라우저 P2P(FMS 우회), 여기엔 시그널링 URL만 둔다. signal_url 의 IP를 각 로봇의 실제 LAN IP로 바꿀 것. 포트는 video_sender_node 의 http_port(기본 8081).",
+  "sources": [
+    {
+      "robot_id": "robot2",
+      "label": "robot2 · OAK-D RGB (1F)",
+      "signal_url": "http://192.168.107.21:8081/offer"
+    },
+    {
+      "robot_id": "robot4",
+      "label": "robot4 · OAK-D RGB (2F)",
+      "signal_url": "http://192.168.107.21:8082/offer"
+    }
+  ]
+}

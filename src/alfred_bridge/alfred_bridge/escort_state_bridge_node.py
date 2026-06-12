@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 import rclpy
 from geometry_msgs.msg import Pose2D
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import Empty, String
 
 from alfred_driving.locations import LOCATIONS
 from alfred_interfaces.msg import RobotState
@@ -79,6 +79,11 @@ class EscortStateBridgeNode(Node):
             self.create_subscription(
                 String, f'/{robot}/detection/info',
                 lambda msg, r=robot: self._on_detection(msg, r),
+                10,
+            )
+            self.create_subscription(
+                Empty, f'/{robot}/emergency_resolve',
+                lambda _msg, r=robot: self._on_emergency_resolve(r),
                 10,
             )
         self.create_subscription(String, '/escort_request', self._on_request, 10)
@@ -157,6 +162,15 @@ class EscortStateBridgeNode(Node):
             return
         self._emergency_robot = robot
         self._set_state(new_state)
+
+    def _on_emergency_resolve(self, robot: str) -> None:
+        """monitor_server 조치완료 → 비상 상태면 즉시 PATROL 복귀."""
+        if self.state not in EMERGENCY_STATES:
+            return
+        self.get_logger().info(f"[{robot}] emergency_resolve → PATROL 복귀")
+        self._emergency_robot = None
+        self._waiting_for_dest = False
+        self._set_state(PATROL)
 
     # ── nav_status 콜백 ───────────────────────────────────────────────────────
 

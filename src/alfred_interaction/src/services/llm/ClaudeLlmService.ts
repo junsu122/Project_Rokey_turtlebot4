@@ -49,7 +49,8 @@ export class ClaudeLlmService implements LlmService {
     });
 
     if (!res.ok) {
-      throw new Error(`LLM proxy error: ${res.status}`);
+      const detail = await res.text().catch(() => '');
+      throw new Error(`LLM proxy error: ${res.status} ${detail}`);
     }
 
     const data = (await res.json()) as ProxyResponse;

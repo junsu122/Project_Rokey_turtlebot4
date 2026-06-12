@@ -5,6 +5,7 @@ import { playBeep } from '@/core/audio';
 import { useLanguage, type AppStrings, type Language } from '@/core/i18n';
 import { localizedFacilityName, type NavigationSession } from '@/core/domain';
 import { useKioskState } from '@/core/kiosk';
+import { cx } from '@/core/utils';
 import { useSpeak } from '@/services';
 import { useGuidance } from './GuidanceProvider';
 import styles from './GuidingScreen.module.css';
@@ -25,26 +26,40 @@ export function GuidingScreen() {
   const announcedRef = useRef(false);
   const arrivedAnnouncedRef = useRef(false);
 
-  const arrived = session?.progress.phase === 'arrived';
+  const arrived = session?.progress.phase === 'arrived' || !!escort?.arrived;
   const vi = mode === 'visually_impaired';
   const hasContent = !!session || !!escort;
+  // Kiosk confirmed a destination but the robot hasn't reported ESCORT_* yet.
+  const preparing = !session && !!escort?.preparing;
   // Only a local (user-initiated) escort can be cancelled from the kiosk; the
   // robot owns its own escort.
   const canCancel = !!session && !arrived;
 
-  const caption = arrived ? strings.guiding.arrived : strings.guiding.caption;
-  // Subtitle: rich from the local session, else the robot-provided destination.
-  const subtitle = session
-    ? arrived
-      ? undefined
-      : describe(session, strings, language)
-    : escort?.destinationName
-      ? strings.guiding.toDestination(escort.destinationName)
-      : undefined;
+  const caption = preparing
+    ? strings.guiding.preparing
+    : arrived
+      ? strings.guiding.arrived
+      : strings.guiding.caption;
+  // Subtitle: nothing on arrival; else rich from the local session, else the
+  // robot-provided destination.
+  const subtitle = arrived
+    ? undefined
+    : session
+      ? describe(session, strings, language)
+      : escort?.destinationName
+        ? preparing
+          ? strings.guiding.preparingTo(escort.destinationName)
+          : strings.guiding.toDestination(escort.destinationName)
+        : undefined;
   const ratio = Math.min(
     1,
     Math.max(0, session ? session.progress.ratio : escort?.ratio ?? 0),
   );
+  // Robot-driven escort reports no progress %, so show an indeterminate (animated)
+  // bar instead of a permanently-empty one. The bar is hidden once arrived.
+  const robotDriven = !!escort && !session;
+  const indeterminate = !arrived && robotDriven && ratio <= 0;
+  const showProgress = hasContent && !arrived;
 
   // VI mode: announce the trip once on entry (session subtitle or robot name).
   useEffect(() => {
@@ -75,12 +90,19 @@ export function GuidingScreen() {
     <ScreenFrame tone="dark">
       <div className={styles.body}>
         <RobotFace caption={caption} subtitle={subtitle} />
-        <div className={styles.progress} aria-hidden="true">
+        {showProgress && (
           <div
-            className={styles.progressFill}
-            style={{ width: `${Math.round(ratio * 100)}%` }}
-          />
-        </div>
+            className={cx(styles.progress, indeterminate && styles.indeterminate)}
+            aria-hidden="true"
+          >
+            {!indeterminate && (
+              <div
+                className={styles.progressFill}
+                style={{ width: `${Math.round(ratio * 100)}%` }}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {canCancel && (

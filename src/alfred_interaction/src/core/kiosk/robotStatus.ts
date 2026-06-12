@@ -11,6 +11,7 @@ export type RobotStatus =
   | 'ESCORT_2F'
   | 'WAITING_1F'
   | 'WAITING_2F'
+  | 'GO_HANDOVER'
   | 'ESCORT_1F_FINISHED'
   | 'ESCORT_2F_FINISHED'
   | 'ESCORT_COMPLETED'
@@ -54,6 +55,10 @@ export function robotStatusToEvent(msg: RobotStatusMessage): KioskEvent | null {
     case 'WAITING_1F':
     case 'WAITING_2F':
       return { type: 'ENTER_WAITING', info: { kind: 'waiting' } };
+
+    // 1F→2F 릴레이: robot4가 2층 핸드오버(픽업) 지점으로 이동 중 — WAITING_2F 직전 단계.
+    case 'GO_HANDOVER':
+      return { type: 'ENTER_WAITING', info: { kind: 'handover' } };
 
     // Done on this floor → send the user to the other floor. Prefer the floor
     // the robot names (target_floor); else fall back by which floor finished.

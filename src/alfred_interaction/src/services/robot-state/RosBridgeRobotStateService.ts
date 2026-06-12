@@ -39,7 +39,7 @@ export class RosBridgeRobotStateService implements RobotStateService {
  * Accepts snake_case (ROS convention) and camelCase keys. Returns null if there's
  * no usable `state`.
  */
-function parseRobotStatus(raw: unknown): RobotStatusMessage | null {
+export function parseRobotStatus(raw: unknown): RobotStatusMessage | null {
   const src = toSource(raw);
   if (!src) return null;
   const state = str(src.state ?? src.status);

@@ -10,6 +10,7 @@
 }
 
 .progress {
+  position: relative;
   width: min(60vw, 720px);
   height: 1.4rem;
   background: rgba(255, 255, 255, 0.18);
@@ -26,6 +27,39 @@
   );
   border-radius: var(--radius-pill);
   transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* Robot-driven escort has no progress %: a green segment slides across to show
+   "in progress" without a fake number. */
+.indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent),
+    var(--color-accent-strong)
+  );
+  border-radius: var(--radius-pill);
+  animation: indeterminate-slide 1.4s var(--ease-out) infinite;
+}
+
+@keyframes indeterminate-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
 }
 
 .cancel {

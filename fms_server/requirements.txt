@@ -1,6 +1,0 @@
-# FMS 서버 의존성 (최소 유지 — 구현가이드 §1)
-paho-mqtt==2.1.0
-Flask==3.0.3
-Flask-Cors==4.0.1
-PyYAML==6.0.2
-# SQLite 는 표준 라이브러리(sqlite3) 사용 — 별도 패키지 없음

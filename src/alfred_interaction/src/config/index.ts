@@ -9,6 +9,7 @@ export { env } from './env';
 export { messages, useStrings } from './i18n';
 export { facilities } from './facilities';
 export { floors, BLUEPRINT } from './floors';
+export { poseToFraction, hasFloorCalibration } from './mapCalibration';
 
 // ---- Lookups (kept here so features never index raw arrays themselves) ----
 

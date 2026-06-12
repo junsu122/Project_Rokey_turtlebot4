@@ -49,6 +49,8 @@ const ko: AppStrings = {
   },
   guiding: {
     caption: '시설 안내중',
+    preparing: '안내 준비 중',
+    preparingTo: (name) => `${name}(으)로 안내를 준비하고 있어요`,
     toDestination: (name) => `${name} (으)로 안내하고 있어요`,
     viaTransfer: (via, toFloor) =>
       `${via}(으)로 이동 후 ${toFloor}에서 이어서 안내해요`,
@@ -63,6 +65,8 @@ const ko: AppStrings = {
   waiting: {
     caption: '잠시만 기다려 주세요',
     subtitle: '곧 안내를 이어갈게요',
+    handover: '안내를 준비하고 있어요',
+    handoverSub: '곧 모시러 갈게요',
     transfer: (toFloor) => `이 층 안내가 끝났어요 · ${toFloor}로 이동해 주세요`,
   },
   staff: {
@@ -118,6 +122,8 @@ const en: AppStrings = {
   },
   guiding: {
     caption: 'Guiding you',
+    preparing: 'Getting ready',
+    preparingTo: (name) => `Getting ready to guide you to ${name}`,
     toDestination: (name) => `Guiding you to ${name}`,
     viaTransfer: (via, toFloor) =>
       `Via the ${via}, then continuing on ${toFloor}`,
@@ -132,6 +138,8 @@ const en: AppStrings = {
   waiting: {
     caption: 'Please wait a moment',
     subtitle: "I'll continue shortly",
+    handover: 'Getting ready to guide you',
+    handoverSub: "I'm on my way to you",
     transfer: (toFloor) => `Done on this floor · please head to ${toFloor}`,
   },
   staff: {
@@ -187,6 +195,8 @@ const ja: AppStrings = {
   },
   guiding: {
     caption: 'ご案内中',
+    preparing: 'ご案内の準備中',
+    preparingTo: (name) => `${name}へのご案内を準備しています`,
     toDestination: (name) => `${name}へご案内しています`,
     viaTransfer: (via, toFloor) =>
       `${via}へ移動後、${toFloor}で続けてご案内します`,
@@ -201,6 +211,8 @@ const ja: AppStrings = {
   waiting: {
     caption: '少々お待ちください',
     subtitle: 'まもなく案内を続けます',
+    handover: 'ご案内の準備中です',
+    handoverSub: '今からお迎えにあがります',
     transfer: (toFloor) => `この階のご案内は終了 · ${toFloor}へお進みください`,
   },
   staff: {
@@ -255,6 +267,8 @@ const zh: AppStrings = {
   },
   guiding: {
     caption: '正在带路',
+    preparing: '正在准备',
+    preparingTo: (name) => `正在准备带您前往${name}`,
     toDestination: (name) => `正在带您前往${name}`,
     viaTransfer: (via, toFloor) => `先前往${via}，再在${toFloor}继续带路`,
     handoff: (toFloor) => `${toFloor}的机器人将继续为您带路`,
@@ -268,6 +282,8 @@ const zh: AppStrings = {
   waiting: {
     caption: '请稍候',
     subtitle: '马上继续为您带路',
+    handover: '正在准备向导',
+    handoverSub: '马上来接您',
     transfer: (toFloor) => `本层向导结束 · 请前往${toFloor}`,
   },
   staff: {

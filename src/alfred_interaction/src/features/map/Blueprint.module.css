@@ -4,6 +4,51 @@
   display: block;
 }
 
+/* ---- 로봇 실시간 현위치 (점멸 빨간 점 + 퍼지는 펄스 링) ---- */
+.hereCore {
+  fill: #ef4444;
+  stroke: #ffffff;
+  stroke-width: 0.6;
+  animation: here-blink 1.2s ease-in-out infinite;
+}
+
+.herePulse {
+  fill: #ef4444;
+  opacity: 0.55;
+  animation: here-pulse 1.2s ease-out infinite;
+}
+
+@keyframes here-pulse {
+  0% {
+    r: 2.5;
+    opacity: 0.5;
+  }
+  100% {
+    r: 9;
+    opacity: 0;
+  }
+}
+
+@keyframes here-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .herePulse {
+    animation: none;
+    opacity: 0.3;
+  }
+  .hereCore {
+    animation: none;
+  }
+}
+
 .outline {
   fill: var(--color-surface);
   stroke: var(--color-primary);

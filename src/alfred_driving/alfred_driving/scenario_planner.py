@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
-from alfred_driving.locations import ESC_X_THRESHOLD, LOCATIONS, TRANSFER_PAIRS
+from alfred_driving.locations import LOCATIONS, TRANSFER_PAIRS
 
 
 @dataclass(frozen=True)
@@ -66,14 +66,16 @@ def parse_person_request(payload: dict[str, Any]) -> PersonRequest:
         )
 
     customer = payload.get('customer') if isinstance(payload.get('customer'), dict) else {}
-    person_type = str(
+    raw_person_type = (
         payload.get('person_type')
         or payload.get('user_type')
         or payload.get('type')
         or customer.get('profile')
         or 'normal'
-    ).lower()
-    mode = str(payload.get('mode') or customer.get('profile') or person_type).lower()
+    )
+    raw_mode = payload.get('mode') or customer.get('profile') or raw_person_type
+    person_type = normalize_person_type(raw_person_type)
+    mode = normalize_person_type(raw_mode)
 
     return PersonRequest(
         request_id=str(payload.get('request_id', '')),
@@ -103,7 +105,7 @@ def build_route_plan(request: PersonRequest) -> RoutePlan:
             destination_waypoint_names=destination_waypoints,
         )
 
-    transfer_kind = select_transfer_kind(request.origin_floor, request.origin_x)
+    transfer_kind = select_transfer_kind(request)
     pair = TRANSFER_PAIRS[transfer_kind]
     return RoutePlan(
         request=request,
@@ -116,10 +118,13 @@ def build_route_plan(request: PersonRequest) -> RoutePlan:
     )
 
 
-def select_transfer_kind(origin_floor: int, origin_x: float) -> str:
-    if origin_floor == 1 and origin_x < ESC_X_THRESHOLD:
-        return 'esc'
-    return 'lift'
+def select_transfer_kind(request: PersonRequest) -> str:
+    return 'lift' if request.blind_mode else 'esc'
+
+
+def normalize_person_type(value: Any) -> str:
+    blind_values = {'blind', 'visually_impaired', 'visual_impaired'}
+    return 'blind' if str(value).strip().lower() in blind_values else 'normal'
 
 
 def destination_route_names(request: PersonRequest) -> Tuple[str, ...]:

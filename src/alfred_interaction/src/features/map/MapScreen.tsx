@@ -11,6 +11,7 @@ import {
   floors,
   getFloorOrThrow,
   kioskConfig,
+  poseToFraction,
   useStrings,
 } from '@/config';
 import {
@@ -22,6 +23,7 @@ import { useLanguage } from '@/core/i18n';
 import { useKioskDispatch } from '@/core/kiosk';
 import { cx } from '@/core/utils';
 import { useGuidance } from '@/features/guiding/GuidanceProvider';
+import { useRobotPose } from '@/features/robot-pose';
 import { Blueprint } from './Blueprint';
 import styles from './MapScreen.module.css';
 
@@ -40,6 +42,12 @@ export function MapScreen() {
 
   const floor = getFloorOrThrow(floorId);
   const list = facilitiesOnFloor(floorId);
+  // 로봇 실시간 현위치(m) → 도면 비율. 이 키오스크의 층을 보고 있을 때만 표시.
+  const pose = useRobotPose();
+  const here =
+    pose && floorId === kioskConfig.currentFloorId
+      ? poseToFraction(pose.x, pose.y, floorId)
+      : null;
   // Benches etc. stay drawn on the blueprint for orientation, but only
   // selectable facilities appear in the tappable destination list.
   const selectable = list.filter(isSelectableFacility);
@@ -106,6 +114,7 @@ export function MapScreen() {
             onSelect={handleSelect}
             selectedId={selectedId}
             language={language}
+            here={here}
           />
         </div>
 

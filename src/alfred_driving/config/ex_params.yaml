@@ -1,0 +1,92 @@
+location_command_node:
+  ros__parameters:
+    robot2_namespace: robot2
+    robot4_namespace: robot4
+    floor1_map_path: src/map/map_1.yaml
+    floor2_map_path: src/map/map_2.yaml
+    fire_patient_model_path: src/yolo/fire_patient_v1.pt
+    yolo_obstacle_locations:
+      - "*"
+
+paired_navigation_node:
+  ros__parameters:
+    robot2_namespace: robot2
+    robot4_namespace: robot4
+
+navigation_node:
+  ros__parameters:
+    robot_namespace: robot4
+    startup_check_seconds: 5.0
+    initial_pose_enabled: false
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_z: 0.0
+    initial_pose_w: 1.0
+
+robot2_navigation_node:
+  ros__parameters:
+    robot_namespace: robot2
+    startup_check_seconds: 5.0
+    initial_pose_enabled: false
+    initial_pose_x: -2.46
+    initial_pose_y: 1.67
+    initial_pose_z: 0.77
+    initial_pose_w: 0.63
+
+robot4_navigation_node:
+  ros__parameters:
+    robot_namespace: robot4
+    startup_check_seconds: 5.0
+    initial_pose_enabled: false
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_z: 0.0
+    initial_pose_w: 1.0
+
+robot2_gate_yolo_obstacle_node:
+  ros__parameters:
+    robot_namespace: robot2
+    model_path: src/yolo/fire_patient_v1.pt
+    target_frame: map
+    conf_threshold: 0.6
+    iou_threshold: 0.45
+    img_size: 640
+    min_depth: 0.2
+    max_depth: 3.5
+    sync_slop: 0.4
+    detection_fps: 0.5
+    publish_rate: 3.0
+    stale_obstacle_timeout: 4.0
+    obstacle_radius: 0.45
+    obstacle_height: 0.0
+    obstacle_circle_rings: 2
+    obstacle_circle_points: 10
+    class_names:
+      - ""
+    start_enabled: true
+    show_debug_window: false
+    log_obstacle_points: true
+
+robot4_gate_yolo_obstacle_node:
+  ros__parameters:
+    robot_namespace: robot4
+    model_path: src/yolo/fire_patient_v1.pt
+    target_frame: map
+    conf_threshold: 0.6
+    iou_threshold: 0.45
+    img_size: 640
+    min_depth: 0.2
+    max_depth: 3.5
+    sync_slop: 0.4
+    detection_fps: 0.5
+    publish_rate: 3.0
+    stale_obstacle_timeout: 4.0
+    obstacle_radius: 0.45
+    obstacle_height: 0.0
+    obstacle_circle_rings: 2
+    obstacle_circle_points: 10
+    class_names:
+      - ""
+    start_enabled: true
+    show_debug_window: false
+    log_obstacle_points: true

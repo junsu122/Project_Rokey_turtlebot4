@@ -1,245 +1,519 @@
-# 다중 로봇 릴레이 에스코트 — FMS 서버 (통합 핸드오프)
+# ALFRED — 지하철 자율주행 에스코트 로봇
 
-> ROKEY 7기 A-2조 · 교통허브 내 다중 AMR 기반 릴레이 에스코트 시스템
-> 본 저장소는 **FMS(중앙 관제 서버)** 구현 + 통합에 필요한 계약·도구·문서 일체를 담는다.
-> 프로토콜 버전 **v2.1** · 전송 **MQTT** · 2025‑한 줄 요약: *"로봇은 보고하고, FMS는 task를 내린다."*
+> **ROKEY 7기 지능1 팀 Alfred**
+>
+> 지하철역 내 승객의 목적지를 안내하는 다중 로봇 에스코트 시스템.
+> 시각장애인을 위한 음성 입력, 사람의 걸음 속도에 맞춘 속도 조절,
+> 화재·부상자·위험물 감지 시 관리자 자동 알림을 지원합니다.
 
 ---
 
-## 0. FMS란?
+## 목차
 
-**FMS = Fleet Management System (다중 로봇 관제·운영 서버).**
-여러 대의 로봇(여기선 TurtleBot4 2대)을 **한곳에서 조율**하는 중앙 서버다. 본 프로젝트에서 FMS는:
+1. [시스템 개요](#1-시스템-개요)
+2. [패키지 구조](#2-패키지-구조)
+3. [실행 방법](#3-실행-방법)
+4. [상태 전이 로직](#4-상태-전이-로직)
+5. [요구사항 및 설치](#5-요구사항-및-설치)
 
-- 고객 요청(IF‑01)을 받아 **미션을 생성**하고
-- 어느 로봇이 출발/인계할지 **배정**하며
-- 각 로봇에 **할 일(task, IF‑03)** 을 내리고
-- 로봇들의 **상태 보고(IF‑02)** 로 미션 진행을 계산하며 (Mission State는 **FMS만 소유**)
-- 층간 **핸드오버를 승인**하고 그 **지연(3초 기준)을 측정**하며
-- 이상감지(IF‑05)·이력을 **DB에 기록**하고 **관제 UI**로 보여준다.
+---
 
-FMS는 **로봇의 바퀴를 직접 제어하지 않는다.** "무엇을 하라(task)"만 주고, "어떻게(주행)"는 로봇이 한다.
+## 1. 시스템 개요
 
-### 서비스 흐름 (정상 시나리오)
 ```
-고객이 1층 robot2 호출 → robot2가 핸드오버 지점까지 안내
-→ 2층 robot4가 이어받아(핸드오버) 최종 목적지까지 안내
-(같은 층이면 robot2가 직행)
+┌──────────────────────────────────────────┬───────────────────────────┐
+│              관리자 PC                    │    키오스크 노트북 (층별)   │
+│  (ROS2 허브 + 모니터링 대시보드)            │     (터치/음성 UI)         │
+│                                          │                           │
+│  alfred_bridge      rosbridge_server     │   alfred_interaction      │
+│  alfred_driving     alfred_monitor_server│   (Node.js / React)       │
+│  alfred_vision                           │                           │
+└──────────────────────────────────────────┴───────────────────────────┘
+        │  ROS2 DDS (토픽/액션)                  │
+        │◄──────────────────────────────────────│ WebSocket (rosbridge :9090)
+        │──────────────────────────────────────►│ WebSocket (state_ws   :9091)
 ```
 
----
+| 로봇 | 역할 | 층 |
+|------|------|----|
+| **robot2** | 1층 순찰 + 에스코트 | 1F |
+| **robot4** | 2층 목적지 안내 | 2F |
 
-## 1. 시스템 아키텍처 (트랙 분업)
+**에스코트 시나리오**
 
-4개 트랙이 **정의된 인터페이스(IF‑01~05)** 로만 통신한다.
-
-| 트랙 | 역할 | FMS로 보냄 | FMS에서 받음 |
-|---|---|---|---|
-| **Interaction** (STT/LLM/TTS/UI) | 고객 응대·목적지 확정 | IF‑01 (요청) | — |
-| **Driving/Escort** | 자율주행·핸드오버 수행 | IF‑02 (상태), task_ack | **IF‑03 (task) — 유일 입력** |
-| **Vision** | 카메라 YOLO 이상감지 | IF‑05 (이벤트) | — |
-| **FMS** (본 저장소) | 미션·상태·핸드오버 조율 | IF‑03 | IF‑01/02/05 |
-| **관제 UI** | 모니터링 | — | Flask REST(GET) |
-
-**핵심: FMS는 ROS를 모른다.** 로봇 유닛 내부는 ROS2지만, 유닛↔FMS는 **MQTT JSON(IF)** 한 채널뿐이고, 그 변환은 각 로봇 유닛의 **브리지 노드**가 한다. → 자세한 그림:
-
-- [`docs/SYSTEM_ARCHITECTURE.png`](docs/SYSTEM_ARCHITECTURE.png) — 제어 평면(MQTT/HTTP) + 데이터 평면(영상)
-- [`docs/DEPLOYMENT_TOPOLOGY.png`](docs/DEPLOYMENT_TOPOLOGY.png) / [`..._SEPARATED.png`](docs/DEPLOYMENT_TOPOLOGY_SEPARATED.png) — 어느 PC에 무엇이 도나(공유/분리 도메인)
-- [`docs/ROBOT_UNIT_NODES.png`](docs/ROBOT_UNIT_NODES.png) — 로봇 유닛 내부 ROS2 노드 구성(참조 제안)
+| 요청 | 동작 |
+|------|------|
+| 1층 → 1층 | robot2 단독 에스코트 후 귀환 |
+| 2층 → 2층 | robot4 단독 에스코트 후 귀환 |
+| 1층 → 2층 | robot2가 엘리베이터까지 안내 → robot4가 이어받아 목적지까지 (릴레이) |
 
 ---
 
-## 2. ⭐ 통합팀이 먼저 볼 것 (로봇 측 = 브리지)
-
-FMS는 완성되어 있다. 통합팀의 작업은 **각 로봇 유닛에 브리지 노드를 만들어 ROS ↔ IF/MQTT를 잇는 것**이다.
-
-1. **[`docs/INTERFACE_CONTRACT.md`](docs/INTERFACE_CONTRACT.md)** ← **이 계약이 단일 기준.** IF‑01~05 형식·토픽·QoS·상태 enum·정상/예외 흐름 전부.
-2. **[`docs/bridge_config.template.yaml`](docs/bridge_config.template.yaml)** ← 로봇당 이 블록을 복사해 **`ros_topic`/`ros_type` 빈칸만 채우면** 브리지 매핑 완성.
-3. 브리지가 할 일(양방향 번역):
-   - `ros→mqtt`: 로봇 ROS 토픽 구독 → IF JSON으로 `robot/{id}/status·request·event·task_ack` 발행
-   - `mqtt→ros`: `robot/{id}/task`(IF‑03) 구독 → 로봇 ROS 토픽으로 재발행 → Driving 수행
-
-### 브리지 구현 시 필수 규칙
-- **멱등**: QoS 1은 중복 배달 가능 → 이미 처리한 `task_id` 재수신 시 무시.
-- **거절 규칙(계약 §6.2)**: 로봇이 **PATROL/IDLE**(임무 없이 대기) 상태에서 받은 ESCORT 계열 task는 **REJECT** (유령 에스코트 방지). 임무 중 상태(INTERACTING·RESERVED·HANDOVER_READY·WAITING_HANDOVER·ESCORTING)는 수락.
-- **client_id 유일**: 브리지마다 다른 MQTT client_id (`bridge_robot2`, `bridge_robot4`). FMS는 `fms_server`.
-- **시간 동기화(NTP)**: 핸드오버 "3초" 측정은 로봇 PC와 FMS PC의 timestamp 차이로 계산 → **전 기기 chrony(NTP) 동기화 필수.**
-
----
-
-## 3. 인터페이스 요약 (상세는 계약 문서)
-
-전송: **Mosquitto MQTT broker**, FMS 호스트 PC의 `:1883`. 페이로드 UTF‑8 JSON. `{id} ∈ {robot2, robot4}`.
-
-| IF | 토픽 | 방향 | QoS | 용도 |
-|---|---|---|---|---|
-| IF‑01 | `robot/{id}/request` | 로봇→FMS | 1 | 미션 요청(ESCORT/CANCEL) |
-| IF‑02 | `robot/{id}/status` | 로봇→FMS | 0 | 로봇 상태 + task 결과 보고 |
-| IF‑03 | `robot/{id}/task` | FMS→로봇 | 1 | **task 발행(로봇 유일 입력)** |
-| ACK | `robot/{id}/task_ack` | 로봇→FMS | 1 | task 수락/거절 |
-| IF‑05 | `robot/{id}/event` | 로봇→FMS | 1 | 이상감지(FIRE/SUSPICIOUS_PERSON) |
-
-**공통 필드**(모든 메시지): `msg_id`(uuid), `version`("2.1"), `timestamp`(ISO8601, ms 포함).
-
-**task_type (4종)**: `MOVE_TO_STANDBY` · `ESCORT_TO_HANDOVER` · `ESCORT_TO_FINAL` · `RETURN_TO_BASE`
-(순찰 task 없음 — 순찰은 task 없을 때 로봇의 기본 동작)
-
-### 상태 모델
-- **Robot State (로봇 소유, IF‑02 보고)**: `IDLE PATROL INTERACTING RESERVED HANDOVER_READY ESCORTING WAITING_HANDOVER RETURNING EMERGENCY ERROR`
-- **Mission State (FMS 단독 소유)**: `REQUESTED → ASSIGNED → ESCORTING_TO_HANDOVER → HANDOVER_WAITING → ESCORTING_TO_FINAL → COMPLETED` (예외: `CANCELLED/EMERGENCY/FAILED`)
-
----
-
-## 4. 설계 원칙 (절대 규칙 8 — 위반 시 통합이 깨짐)
-
-1. **ROS 금지** — FMS는 ROS 비의존, MQTT JSON만.
-2. **이벤트 구동** — 블로킹/DB 폴링 금지. 타임아웃은 감시 스레드(타이머)로.
-3. **명령은 task로만** — 목표 상태를 보내지 않음.
-4. **Mission State는 FMS 단독 소유** — 로봇에 전송도, 로봇에서 수신도 안 함.
-5. **Robot State는 로봇 소유** — FMS는 관측만(전이표는 검증용).
-6. **DB는 기록 전용** — 통신 수단으로 쓰지 않음.
-7. **Flask는 읽기 전용 GET** — 로봇 제어·미션 생성을 HTTP로 받지 않음(로그인 인증은 예외).
-8. **순찰은 task가 아님** — FMS는 PATROL을 지시하지 않음.
-
----
-
-## 5. 빠른 실행 (mock으로 실로봇 없이 전체 동작)
-
-> 전체 명령·옵션은 [`fms_server/README.md`](fms_server/README.md) 참조.
-
-```bash
-cd fms_server
-python3 -m pip install -r requirements.txt
-sudo apt-get install -y mosquitto mosquitto-clients && sudo systemctl enable --now mosquitto
-python3 tools/build_maps.py          # 맵 png 생성 (최초 1회)
-
-# 터미널 ① FMS
-python3 main.py
-# 터미널 ②③ 가짜 로봇 2대 (맵 위 좌표 지정)
-python3 tools/mock_robot.py --robot-id robot2 --start-x -4.0 --start-y 2.5
-python3 tools/mock_robot.py --robot-id robot4 --start-x -1.7 --start-y 2.2
-# 터미널 ④ 미션 발생 (Interaction 시뮬)
-python3 tools/send_request.py --robot-id robot2 --dest GATE_30 --dest-floor 2 --origin-floor 1
-```
-**브라우저** `http://localhost:5000/` → 로그인 **`admin` / `admin1234`**
-
-### 자동 검증 (정상3 + 예외4 + 이상1 + API3)
-```bash
-python3 tools/integration_test.py    # 다른 FMS/로봇은 모두 끈 상태에서
-```
-> ⚠️ **한 브로커엔 FMS 하나만.** 둘 띄우면 client_id 충돌 + 미션 중복 생성. 테스트 전 `pkill -f main.py`.
-
----
-
-## 6. 관제 대시보드 (브라우저)
-
-`http://localhost:5000/` — 로그인 후 1초 폴링으로:
-- **로봇 실시간(IF‑02)**: 상태·task·배터리·last_seen(STALE 표시)
-- **맵 위 로봇 위치**: 층별 ROS occupancy grid + 로봇 dot(IF‑02 pose 변환). robot2=1층, robot4=2층.
-- **활성/최근 미션**: 상태·전이·핸드오버 지연(≤3초)·발행 task
-- **미션 이력 / 이상감지(IF‑05)**
-- **검색(DB)**: 미션·이벤트·task 키워드 조회
-- **로그인**: 세션 기반(`admin`/`admin1234`, env로 변경). 미인증 시 페이지→`/login`, API→401.
-
-### 관제 UI 확장 + 데모 (탭 10종 · 3D 이상감지 · 긴급 대응 · 영상)
-
-상세·실행 명령은 [`fms_server/README.md` → "관제 UI 확장" 절](fms_server/README.md#관제-ui-확장--성과지표--이상감지-3d--긴급-대응--영상-데모) 참조.
-
-- **탭 10종**: 실시간 관제 / 미션 이력·검색 / 성과 지표 / 시스템 상태 / 로봇 추이 /
-  미션 타임라인 / 요청·태스크 / 이상감지 / 영상(WebRTC) / 관제 현황 — 모두 `/api/*` GET(읽기 전용).
-- **3D 관제 뷰** `http://localhost:5000/viz` — 층 전환·로봇 위치·**이상감지 비콘**(IF‑05 좌표).
-- **긴급 대응**: 이벤트 발생 시 비상 배너·이상감지 탭에 📞119/📞112/🛡보안팀 + **[조치 완료]** 버튼.
-  조치 완료(`POST /api/events/<id>/resolve`)는 **유일한 쓰기 예외**(로봇 제어 아님 = 관제사 확인).
-- **데모 일괄 발행**: `python3 tools/demo_events.py --count 8` → 3D 비콘·긴급 버튼·카운터 즉시 확인.
-- **카메라 영상(WebRTC, 선택)**: 로봇↔브라우저 P2P(FMS 우회). 로봇서 `video_sender_node` 실행 +
-  `web/video_sources.json`에 로봇 IP 입력 → "영상" 탭. (같은 LAN, STUN/TURN 불필요)
-
----
-
-## 7. 데이터 (SQLite, 기록 전용)
-
-- 위치: `fms_server/fms.db` (+ WAL: `fms.db-wal`, `fms.db-shm`). 런타임 자동 생성.
-- 테이블: `requests · missions · mission_transitions · tasks · robot_status_log · events`
-- 핸드오버 3초 증빙: `missions.handover_latency_ms`. 성능 집계: `GET /api/stats`.
-- 백업 = `fms.db` 복사, 초기화 = 파일 삭제 후 재기동.
-
----
-
-## 8. 저장소 구조
+## 2. 패키지 구조
 
 ```
 alfred_ws/
-├── README.md                       ← (이 문서) 통합 핸드오프 개요
-├── docs/
-│   ├── INTERFACE_CONTRACT.md       ★ 통합 계약 (IF-01~05) — 단일 기준
-│   ├── bridge_config.template.yaml ★ 브리지 설정 템플릿 (로봇당 복사)
-│   ├── 인터페이스_정의서_v2_1.md     인터페이스 원본 명세 v2.1
-│   ├── FMS_서버_구현가이드.md        구현 가이드 (절대 규칙)
-│   ├── SYSTEM_ARCHITECTURE.png      제어/데이터 평면 아키텍처
-│   ├── DEPLOYMENT_TOPOLOGY*.png     PC 배치(공유/분리 도메인)
-│   ├── ROBOT_UNIT_NODES.png         로봇 유닛 ROS2 노드 구성(참조)
-│   └── maps/                        SLAM 맵 (map_1/2 .pgm+.yaml, 좌표 png)
-└── fms_server/
-    ├── README.md                   서버 상세 실행 가이드
-    ├── main.py                     조립·기동(MQTT·Flask·타임아웃 감시)
-    ├── config.py                   브로커·토픽·상수·로봇 레지스트리·로그인
-    ├── transport.py                MQTT 래퍼 (paho 의존 격리)
-    ├── states.py messages.py poi.py
-    ├── state_machine.py            전이표(데이터)
-    ├── mission_manager.py          미션 생성·배정·task 발행·핸드오버·예외
-    ├── robot_registry.py           IF-02 스냅샷·전이감지·미수신 감시
-    ├── event_service.py db.py      IF-05 적재 / SQLite(WAL)
-    ├── api.py                      Flask: 로그인 + 조회 API + 대시보드 서빙
-    ├── poi_table.yaml              POI 테이블 (실좌표 대기)
-    ├── web/                        dashboard.html · login.html · maps/
-    └── tools/                      mock_robot · send_request · send_event ·
-                                    watch · build_maps · integration_test · echo_test
+└── src/
+    ├── alfred_interfaces/           ROS2 커스텀 메시지 정의 (IF-01~05)
+    │   └── msg/
+    │       ├── Request.msg          IF-01 고객 요청 (ESCORT / CANCEL)
+    │       ├── RobotState.msg       IF-02 로봇 상태 보고
+    │       ├── Task.msg             IF-03 임무 할당
+    │       ├── TaskAck.msg          IF-04 수락/거절 응답
+    │       ├── Event.msg            IF-05 이상상황 알림
+    │       └── MissionSignal.msg    로봇 간 예외 전파 (ABORT / EMERGENCY)
+    │
+    ├── alfred_bridge/               상태 관찰 + WebSocket 브릿지
+    │   └── alfred_bridge/
+    │       ├── escort_state_bridge_node.py   에스코트 전체 상태 관찰 →
+    │       │                                 /escort_state, /{robot}/ui_state
+    │       ├── robot_state_publisher_node.py AMCL 위치 + 배터리 →
+    │       │                                 /{robot}/robot_state (1Hz)
+    │       └── state_ws_bridge_node.py       상태 변화 → WebSocket broadcast
+    │                                         (포트 9091)
+    │
+    ├── alfred_driving/              로봇 주행 제어
+    │   ├── alfred_driving/
+    │   │   ├── patrol_node.py              robot2 순찰 루프 + 에스코트 인터럽트
+    │   │   ├── navigation_node.py          robot4 단독 목적지 주행
+    │   │   ├── web_request_node.py         /information JSON → 릴레이 에스코트
+    │   │   ├── rosbridge_node.py           WebSocket /information 수신 (:9090)
+    │   │   ├── aruco_tracker_node.py       ArUco 마커 추적 (사용자 ID + 거리)
+    │   │   ├── marker_speed_governor.py    마커 크기 → Nav2 SpeedLimit
+    │   │   │                               (사람 걸음 속도 추종)
+    │   │   ├── scenario_manager_node.py    /scenario_request → 릴레이 에스코트
+    │   │   ├── server_request_node.py      /information → /scenario_request 변환
+    │   │   ├── escort_node.py              단일 에스코트 Action 실행
+    │   │   ├── behavior_node.py            행동 상태 머신 (인터페이스 계층)
+    │   │   ├── locations.py                POI 좌표, 순찰 경로, 환승 지점 정의
+    │   │   └── nav_to_pose.py              Nav2 NavigateToPose Action 헬퍼
+    │   └── launch/
+    │       └── web_scenario.launch.py      주행 전체 런치 파일
+    │
+    ├── alfred_vision/               비전 감지 + 영상 스트리밍
+    │   └── alfred_vision/
+    │       ├── detector_node.py            YOLO 이상감지 → /{ns}/detection/info
+    │       ├── event_handler_node.py       감지 이벤트 → 핸들러 호출
+    │       ├── video_sender_node.py        WebRTC VP8 영상 스트리밍 (:8081)
+    │       ├── vision_resource.py          모델 경로, 클래스 매핑, Confidence 임계값
+    │       └── handlers/
+    │           ├── fire_handler.py         화재: 비상구로 이동
+    │           ├── injured_handler.py      부상자: 접근 후 조치완료 대기
+    │           ├── suspicious_handler.py   위험물: 관리자 알림 로깅
+    │           └── lost_item_handler.py    분실물: 감지 로깅
+    │
+    ├── alfred_monitor_server/       관리자 모니터링 웹 서버
+    │   └── alfred_monitor_server/
+    │       ├── main.py             Flask + ROS2 ingest 엔트리포인트
+    │       ├── api.py              REST API (로봇 상태, 이벤트, POI)
+    │       ├── ros_ingest.py       ROS2 구독 → 레지스트리 갱신
+    │       ├── robot_registry.py   로봇 실시간 상태 레지스트리
+    │       ├── db.py               SQLite 이벤트 이력 저장
+    │       ├── event_service.py    이벤트 비즈니스 로직
+    │       └── store.py            Supabase 연동 (선택)
+    │
+    ├── alfred_interaction/          키오스크 UI (Node.js / React)
+    │   ├── src/                    React + TypeScript 컴포넌트
+    │   ├── server/                 Express 프록시 서버 (:8787)
+    │   └── RUN.md                  상세 실행 가이드
+    │
+    ├── astra_camera/               OAK-D 카메라 ROS2 드라이버
+    └── astra_camera_msgs/          OAK-D 커스텀 메시지
+```
+
+**감지 클래스 → 이벤트 → 대응 행동**
+
+| 감지 클래스 | 이벤트 타입 | 로봇 행동 |
+|-------------|-------------|-----------|
+| `fire` | `FIRE` | `emergency_exit` 파라미터로 지정된 비상구로 이동 |
+| `patient` | `INJURED_PERSON` | 부상자 위치 접근 → 관리자 조치완료 신호 대기 |
+| `pistol2`, `knife` | `SUSPICIOUS_PERSON` | 관리자 대시보드 알림 + 로깅 |
+| `wallet`, `bag`, `phone` | `LOST_ITEM` | 분실물 감지 로깅 |
+
+---
+
+## 3. 실행 방법
+
+### 빌드 (최초 1회 또는 코드 변경 시)
+
+```bash
+cd ~/alfred_ws
+colcon build
+source install/setup.bash
 ```
 
 ---
 
-## 9. 환경/설정 (env로 변경)
+### 관리자 PC
 
-| 변수 | 기본 | 의미 |
-|---|---|---|
-| `FMS_MQTT_HOST` | `localhost` | 브로커 주소(로봇은 FMS PC 고정 IP) |
-| `FMS_MQTT_PORT` | `1883` | 브로커 포트 |
-| `FMS_STATUS_TIMEOUT` | `10` | status 미수신 임계(초) |
-| `FMS_FLASK_PORT` | `5000` | 관제/대시보드 포트 |
-| `FMS_ADMIN_USER` / `FMS_ADMIN_PASSWORD` | `admin` / `admin1234` | 관제 로그인 |
-| `FMS_DB_PATH` | `./fms.db` | SQLite 경로 |
+#### 모니터링 서버 + rosbridge
+
+```bash
+# ① rosbridge — 키오스크 UI ↔ ROS 토픽 WebSocket 게이트웨이 (포트 9090)
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+
+# ② 모니터링 서버 — 로봇 상태·이벤트 대시보드 REST API (포트 5000)
+ros2 run alfred_monitor_server server
+# 브라우저: http://localhost:5000
+```
+
+#### 브릿지 노드
+
+```bash
+# 에스코트 전체 상태 관찰 → /escort_state, /{robot}/ui_state 발행
+ros2 run alfred_bridge escort_state_bridge_node
+
+# AMCL 위치 + 배터리 → /{robot}/robot_state 1Hz 발행
+ros2 run alfred_bridge robot_state_publisher_node
+
+# 상태 변화 → 연결된 웹 클라이언트에 WebSocket broadcast (포트 9091)
+ros2 run alfred_bridge state_ws_bridge_node
+```
+
+#### 주행 (Launch)
+
+```bash
+ros2 launch alfred_driving web_scenario.launch.py use_aruco:=true start_bridge:=false
+```
+
+런치 파일이 시작하는 노드:
+
+| 노드 | 역할 |
+|------|------|
+| `patrol_node` | robot2 순찰 웨이포인트 루프 + 에스코트 인터럽트 처리 |
+| `rosbridge_node` | WebSocket 포트 9090 — 키오스크 JSON 요청 수신 |
+| `server_request_node` | `/information` → `/scenario_request` 포맷 변환 |
+| `scenario_manager_node` | `/scenario_request` → 릴레이 에스코트 실행 |
+| `aruco_tracker_node` | 웹캠 ArUco 마커 추적 — 사용자 ID + 거리 추정 |
+| `marker_speed_governor` ×2 | 마커 크기 → Nav2 SpeedLimit — 사람 걸음 속도 추종 |
+
+> `navigation_node`(robot4)는 런치 파일에서 주석 처리되어 있습니다.
+> robot4를 단독 주행으로 사용할 때만 별도 실행:
+> ```bash
+> ros2 run alfred_driving navigation_node --ros-args -p robot_namespace:=robot4
+> ```
+
+#### 비전 감지
+
+```bash
+# YOLO 이상감지 — 카메라 영상 → /{ns}/detection/info 발행
+ros2 run alfred_vision detector_node
+
+# 이벤트 핸들러 — 화재/부상자/위험물/분실물 감지 시 행동 실행
+ros2 run alfred_vision event_handler_node
+
+# WebRTC VP8 영상 스트리밍 — 브라우저에서 실시간 확인 (포트 8081)
+ros2 run alfred_vision video_sender_node
+```
+
+> **관리자 대시보드에서 실시간 영상 보기**
+> `video_sender_node`는 로봇(TurtleBot4) 자체에서 실행됩니다.
+> 관리자 PC 브라우저가 로봇과 직접 P2P(WebRTC) 연결을 맺으므로,
+> 아래 파일의 `signal_url`에 **각 로봇의 실제 LAN IP**를 입력해야 합니다.
+>
+> ```
+> src/alfred_monitor_server/alfred_monitor_server/web/video_sources.json
+> ```
+>
+> ```json
+> {
+>   "sources": [
+>     { "robot_id": "robot2", "signal_url": "http://<robot2_IP>:8081/offer" },
+>     { "robot_id": "robot4", "signal_url": "http://<robot4_IP>:8081/offer" }
+>   ]
+> }
+> ```
+>
+> IP가 바뀔 때마다 이 파일만 수정하면 됩니다. 포트는 `video_sender_node`의 `--ros-args -p signal_port:=8081` 기본값과 일치해야 합니다.
 
 ---
 
-## 10. 진행 상태 · 미확정 사항
+### 키오스크 노트북 (층별)
 
-| 마일스톤 | 상태 |
-|---|---|
-| M0 스캐폴드 + 인터페이스 계약 | ✅ |
-| M1 IF‑02 파이프라인 + 조회 API | ✅ |
-| M2 미션 1사이클 + 핸드오버 3초 측정 | ✅ |
-| M3 예외(취소·비상·실패·타임아웃) | ✅ |
-| M4 IF‑05 + 관제 API + 대시보드(맵·로그인·검색) | ✅ |
-| M4+ 관제 UI 확장(탭 10종·3D 이상감지·긴급대응·WebRTC 영상·`EMERGENCY_PATIENT`) | ✅ |
-| **M5 실로봇 통합** | ⏳ **통합팀 진행** (mock→실브리지 교체, FMS 코드 무변경 목표) |
+> **키오스크 노트북은 관리자 PC가 열어둔 rosbridge(:9090)를 구독합니다.**
+> 반드시 `.env`의 `VITE_ROSBRIDGE_HOST`를 **관리자 PC의 LAN IP**로 설정해야
+> 키오스크 → ROS 토픽(`/information`) 전송이 동작합니다.
 
-**통합 전 확정/확인 필요:**
-- **브리지 토픽 매핑** — `bridge_config.template.yaml`의 `ros_topic`/`ros_type` 채우기 (로봇 트랙)
-- **NTP(chrony) 동기화** — 핸드오버 3초 측정 정확도 전제 ⚠️
-- **FMS 호스트 고정 IP** — 로봇들이 `FMS_MQTT_HOST`로 지정
-- **POI 좌표** — `poi_table.yaml`에 실제 목적지/핸드오버/대기/복귀 지점 입력 (현재 placeholder). 맵 좌표계는 ROS map 프레임(미터)으로 확정됨.
+```bash
+cd ~/alfred_ws/src/alfred_interaction
 
-**스코프 아웃(현 단계 미구현, 의도적):** 동시 고객 2명 이상·배정 실패 응답·재배정·CHARGING·외부 CCTV 연계. (정의서 부록 C 참조)
+# 최초 1회 — 의존성 설치
+npm install
+
+# .env 설정 (최초 1회) — API 키 + rosbridge 연결 설정
+cp .env.example .env
+# ANTHROPIC_API_KEY, SONIOX_API_KEY 입력
+# VITE_ROSBRIDGE_HOST=<관리자 PC의 LAN IP>  ← 반드시 설정
+```
+
+```bash
+# 터미널 A — 백엔드 프록시 (API 키 보관, 포트 8787)
+npm run server
+
+# 터미널 B — 1층 UI (robot2)
+npm run dev          # → http://localhost:5173
+
+# 터미널 B — 2층 UI (robot4)
+npm run dev:2f       # → http://localhost:5173
+```
+
+브라우저에서 `http://localhost:5173` 접속 (반드시 `localhost` — LAN IP는 마이크 불가)
 
 ---
 
-## 11. 문서 인덱스
+### 전체 실행 순서 요약
 
-| 문서 | 용도 |
-|---|---|
-| [docs/INTERFACE_CONTRACT.md](docs/INTERFACE_CONTRACT.md) | **통합 계약 IF‑01~05 (필독)** |
-| [docs/bridge_config.template.yaml](docs/bridge_config.template.yaml) | 브리지 설정 템플릿 |
-| [docs/인터페이스_정의서_v2_1.md](docs/인터페이스_정의서_v2_1.md) | 인터페이스 원본 명세 |
-| [docs/FMS_서버_구현가이드.md](docs/FMS_서버_구현가이드.md) | 구현 가이드·절대 규칙 |
-| [fms_server/README.md](fms_server/README.md) | 서버 실행·명령 상세 |
-| docs/*.png | 아키텍처·배치·노드 다이어그램 |
+```
+[관리자 PC]                                            [키오스크 노트북]
+────────────────────────────────────────────────       ──────────────────
+① rosbridge (:9090)                                    ⑦ npm run server
+② monitor_server (:5000)                               ⑧ npm run dev[:{2f}]
+③ escort_state_bridge_node
+④ robot_state_publisher_node
+⑤ state_ws_bridge_node (:9091)
+⑥ ros2 launch alfred_driving
+     web_scenario.launch.py
+     use_aruco:=true start_bridge:=false
+   alfred_vision detector_node
+   alfred_vision event_handler_node
+   alfred_vision video_sender_node
+```
+
+---
+
+## 4. 상태 전이 로직
+
+### 4-1. 로봇 기본 상태 (고객 관점)
+
+```
+                    고객이 로봇을 호출 (화면 터치 / "헬로 알프레드")
+                                      │
+              ┌───────────────────────▼────────────────────────┐
+              │                    PATROL                       │
+              │                   (순찰 중)                     │◄──────────────┐
+              └───────────────────────┬────────────────────────┘               │
+                                      │ stop_request                            │
+                                      ▼                                         │
+              ┌────────────────────────────────────────────────┐               │
+              │                 INTERACTING                     │               │
+              │         (고객 응대 · 목적지 음성/터치 입력 중)    │               │
+              └───────────────────────┬────────────────────────┘               │
+                                      │ ESCORT 요청 수신                        │
+                                      ▼                                         │
+              ┌────────────────────────────────────────────────┐               │
+              │                  ESCORTING                      │               │
+              │                (에스코트 이동 중)                │               │
+              └───────────────────────┬────────────────────────┘               │
+                                      │ 목적지 도착                              │
+                                      ▼                                         │
+              ┌────────────────────────────────────────────────┐               │
+              │                  RETURNING                      │               │
+              │             (정거장 / HOME으로 복귀 중)           │               │
+              └───────────────────────┬────────────────────────┘               │
+                                      │ resume_patrol_request                   │
+                                      └─────────────────────────────────────────┘
+```
+
+---
+
+### 4-2. 릴레이 에스코트 상세 (1층 → 2층)
+
+```
+  robot2 (1층)                                    robot4 (2층)
+  ──────────────────────────────────────────────────────────────────
+  PATROL
+    │
+    │ 고객 요청 수신 (목적지: 2층)
+    ▼
+  ESCORT_1F ──────────────────────────────────── (대기)
+  (엘리베이터로 이동)
+    │
+    │ 엘리베이터 도착
+    ▼
+  WAITING_1F ── handoff 신호 ────────────────► ESCORT_2F
+    │                                            (목적지로 이동)
+    │ 인계 완료                                      │
+    ▼                                              │ 목적지 도착
+  ESCORT_1F_FINISHED                           ESCORT_COMPLETED
+    │                                              │
+    │ station 복귀                                station2 복귀
+    ▼
+  PATROL 재개
+```
+
+---
+
+### 4-3. 비상상황 상태
+
+```
+  PATROL / ESCORTING
+       │
+       │ YOLO 감지: 화재 / 부상자 / 위험물
+       ▼
+  ┌──────────────────────────────────────────────────────────────────┐
+  │              EMERGENCY  (FIRE / INJURED / SUSPICIOUS)            │
+  │                                                                  │
+  │  FIRE        → 비상구(emergency_exit)로 이동 후 대기              │
+  │  INJURED     → 부상자에 접근 → 관리자 조치완료 신호 대기           │
+  │  SUSPICIOUS  → 관리자 대시보드 알림 로깅 (로봇은 정지)             │
+  └──────────────────────────────┬───────────────────────────────────┘
+                                 │ emergency_resolve 수신 (관리자 확인)
+                                 ▼
+                            PATROL 재개
+```
+
+---
+
+### 4-4. 도킹 사이클 (배터리 부족)
+
+```
+  PATROL  ──(배터리 임계값 이하)──►  DOCKING  ──(충전 완료)──►  UNDOCKING  ──►  PATROL
+```
+
+---
+
+### 4-5. 전체 상태 목록
+
+| 상태 | 설명 |
+|------|------|
+| `PATROL` | 순찰 웨이포인트 루프 진행 중 |
+| `INTERACTING` | 고객 응대 중 (patrol 정지, 목적지 대기) |
+| `ESCORT_1F` | robot2 — 1층 목적지 또는 엘리베이터로 이동 중 |
+| `WAITING_1F` | robot2 — 엘리베이터 도착, robot4 합류 대기 |
+| `ESCORT_1F_FINISHED` | robot2 → robot4 인계 완료 |
+| `ESCORT_2F` | robot4 — 2층 목적지로 이동 중 |
+| `ESCORT_COMPLETED` | 최종 목적지 도착, 임무 완료 |
+| `RETURNING` | 홈(station)으로 복귀 중 |
+| `DOCKING` | 도킹 액션 실행 중 |
+| `UNDOCKING` | 언도킹 액션 실행 중 |
+| `FIRE` | 화재 감지 비상 대응 중 |
+| `INJURED` | 부상자 감지 비상 대응 중 |
+| `SUSPICIOUS` | 위험물 감지 비상 대응 중 |
+
+---
+
+## 5. 요구사항 및 설치
+
+### 5-1. 시스템 요구사항
+
+| 항목 | 버전 |
+|------|------|
+| Ubuntu | 22.04 LTS |
+| ROS2 | Humble Hawksbill |
+| Python | 3.10+ |
+| Node.js | 18+ (20 권장) |
+| CUDA | 11.8+ (YOLO GPU 추론 시) |
+
+---
+
+### 5-2. ROS2 패키지 (apt)
+
+```bash
+sudo apt update && sudo apt install -y \
+  ros-humble-nav2-bringup \
+  ros-humble-nav2-msgs \
+  ros-humble-turtlebot4-navigation \
+  ros-humble-turtlebot4-msgs \
+  ros-humble-rosbridge-server \
+  ros-humble-tf2-ros \
+  ros-humble-tf2-geometry-msgs \
+  ros-humble-cv-bridge \
+  ros-humble-image-transport \
+  ros-humble-irobot-create-msgs \
+  ros-humble-lifecycle-msgs \
+  python3-colcon-common-extensions
+```
+
+---
+
+### 5-3. Python 패키지 (pip)
+
+```bash
+pip install \
+  ultralytics \
+  opencv-python \
+  numpy \
+  aiortc \
+  aiohttp \
+  av \
+  Flask==3.0.3 \
+  Flask-Cors==4.0.1 \
+  PyYAML==6.0.2
+```
+
+Supabase 연동 시 추가:
+
+```bash
+pip install supabase
+```
+
+---
+
+### 5-4. Node.js (alfred_interaction)
+
+```bash
+# nvm으로 Node.js 20 설치 (권장)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install 20 && nvm use 20
+
+# 의존성 설치
+cd ~/alfred_ws/src/alfred_interaction
+npm install
+```
+
+npm install로 설치되는 주요 패키지:
+
+| 영역 | 패키지 |
+|------|--------|
+| UI | `react`, `react-dom`, `vite`, `typescript` |
+| STT | `@soniox/speech-to-text-web` |
+| 프록시 서버 | `express`, `cors`, `dotenv`, `@anthropic-ai/sdk` |
+
+---
+
+### 5-5. 환경 변수 (.env)
+
+`src/alfred_interaction/.env.example`을 복사 후 입력:
+
+```bash
+cp ~/alfred_ws/src/alfred_interaction/.env.example \
+   ~/alfred_ws/src/alfred_interaction/.env
+```
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...       # Claude Haiku — LLM 응답 생성
+SONIOX_API_KEY=...                 # Soniox 실시간 STT
+VITE_ROSBRIDGE_HOST=192.168.0.42   # 관리자 PC IP (rosbridge가 실행 중인 PC)
+VITE_ROSBRIDGE_PORT=9090
+VITE_FLOOR=1                       # 1층 노트북: 1  /  2층 노트북: 2
+```
+
+오프라인 테스트 시 (API 키 없이):
+
+```env
+VITE_USE_MOCKS=true
+```
+
+---
+
+### 5-6. YOLO 모델 가중치
+
+`best.pt`를 아래 경로에 배치합니다 (colcon build 후):
+
+```
+alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
+```
+
+감지 클래스: `fire`, `patient`, `pistol2`, `knife`, `wallet`, `bag`, `phone`
+
+---
+
+## 참고 문서
+
+| 문서 | 내용 |
+|------|------|
+| `docs/인터페이스_정의서_v2_1.md` | ROS 토픽·메시지 인터페이스 원본 명세 |
+| `docs/FMS_서버_구현가이드.md` | 구현 가이드 및 절대 규칙 |
+| `src/alfred_interaction/RUN.md` | 키오스크 UI 상세 실행 가이드 |
+| `src/alfred_interaction/로봇상태_UI연동_계약.md` | 로봇 상태 ↔ UI 연동 계약 |
