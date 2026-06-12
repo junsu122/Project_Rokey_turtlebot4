@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>UDPv4_transport</transport_id>
+      <type>UDPv4</type>
+    </transport_descriptor>
+  </transport_descriptors>
+
+  <participant profile_name="default_participant" is_default_profile="true">
+    <rtps>
+      <!-- 유니캐스트만 사용 — 멀티캐스트 디스커버리 비활성 -->
+      <useBuiltinTransports>false</useBuiltinTransports>
+      <userTransports>
+        <transport_id>UDPv4_transport</transport_id>
+      </userTransports>
+
+      <!-- 피어 IP 목록 (모든 머신 IP를 여기에 등록) -->
+      <!-- 이 IP 목록을 실제 사용하는 모든 머신 IP로 수정할 것 -->
+      <builtin>
+        <metatrafficUnicastLocatorList>
+          <locator>
+            <udpv4>
+              <address>0.0.0.0</address>
+            </udpv4>
+          </locator>
+        </metatrafficUnicastLocatorList>
+        <initialPeersList>
+          <!-- 노트북 (브리지 서버) -->
+          <locator><udpv4><address>192.168.107.21</address></udpv4></locator>
+          <!-- 로봇2 RPi -->
+          <!-- <locator><udpv4><address>192.168.107.XX</address></udpv4></locator> -->
+          <!-- 로봇4 RPi -->
+          <!-- <locator><udpv4><address>192.168.107.YY</address></udpv4></locator> -->
+          <!-- 기타 노트북 -->
+          <!-- <locator><udpv4><address>192.168.107.ZZ</address></udpv4></locator> -->
+        </initialPeersList>
+        <discovery_config>
+          <leaseDuration>
+            <sec>30</sec>
+          </leaseDuration>
+          <leaseAnnouncement>
+            <sec>5</sec>
+          </leaseAnnouncement>
+        </discovery_config>
+      </builtin>
+    </rtps>
+  </participant>
+
+</profiles>

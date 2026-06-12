@@ -12,6 +12,8 @@ setup(
         package_name: [
             'web/**/*',
             'web/*',
+            'viz_3d/**/*',
+            'viz_3d/*',
             'poi_table.yaml',
         ],
     },

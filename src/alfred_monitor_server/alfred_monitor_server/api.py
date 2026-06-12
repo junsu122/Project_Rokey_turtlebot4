@@ -32,7 +32,7 @@ if config.SUPABASE_URL:
         logger.warning("Supabase events unavailable, falling back to SQLite: %s", exc)
         _sb_events = None
 WEB_DIR = Path(__file__).resolve().parent / "web"
-_default_viz = Path(__file__).resolve().parent.parent.parent.parent / "viz_3d"
+_default_viz = Path(__file__).resolve().parent / "viz_3d"
 VIZ_DIR = Path(os.getenv("VIZ_3D_DIR", str(_default_viz)))
 FLOOR_DATA_PATH = WEB_DIR / "maps" / "floor_data.json"
 

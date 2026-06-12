@@ -1,0 +1,200 @@
+<mxfile host="Electron" modified="2026-06-11T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram name="robot_state_publisher_node" id="robot_state_publisher">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 타이틀 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="title" value="robot_state_publisher_node" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#1a237e;" vertex="1" parent="1">
+          <mxGeometry x="527" y="30" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="흩어진 ROS 토픽을 하나의 RobotState로 합쳐 monitor_server에 1Hz 전달하는 어댑터" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#424242;" vertex="1" parent="1">
+          <mxGeometry x="527" y="68" width="600" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 입력 소스 노드들 (왼쪽) -->
+        <!-- ══════════════════════════════════════════════════════ -->
+
+        <!-- Nav2 AMCL -->
+        <mxCell id="amcl" value="Nav2 AMCL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="160" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- 배터리 드라이버 -->
+        <mxCell id="battery_drv" value="배터리 드라이버" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="260" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- patrol_node -->
+        <mxCell id="patrol" value="patrol_node" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="360" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- scenario_manager_node -->
+        <mxCell id="scenario" value="scenario_manager_node" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="460" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- vision handlers -->
+        <mxCell id="vision" value="vision handlers&#xa;(fire/injured/suspicious)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="560" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 중앙 메인 노드 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="main_node" value="robot_state_publisher_node" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=14;fontStyle=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="527" y="340" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 토픽 레이블 — 입력 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+
+        <!-- amcl_pose 토픽 -->
+        <mxCell id="topic_amcl" value="/{robot}/amcl_pose&#xa;→ x, y, yaw 추출·캐시" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fillColor=#fff9c4;strokeColor=#f9a825;rounded=1;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="295" y="175" width="180" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- battery_state 토픽 -->
+        <mxCell id="topic_batt" value="/{robot}/battery_state&#xa;→ % × 100 → 정수 캐시" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fillColor=#fff9c4;strokeColor=#f9a825;rounded=1;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="295" y="272" width="180" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- nav_status 토픽 -->
+        <mxCell id="topic_nav" value="/{robot}/nav_status&#xa;→ &quot;patrol_stopped&quot; → INTERACTING" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fillColor=#fff9c4;strokeColor=#f9a825;rounded=1;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="295" y="368" width="196" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- goal_pose_request 토픽 -->
+        <mxCell id="topic_goal" value="/{robot}/goal_pose_request&#xa;→ (INTERACTING 중) → ESCORTING" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fillColor=#fff9c4;strokeColor=#f9a825;rounded=1;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="290" y="464" width="204" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- resume_patrol_request 토픽 -->
+        <mxCell id="topic_resume" value="/{robot}/resume_patrol_request&#xa;→ PATROL 복귀" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fillColor=#fff9c4;strokeColor=#f9a825;rounded=1;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="295" y="564" width="196" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 입력 화살표들 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="e_amcl" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;strokeColor=#1565c0;strokeWidth=2;" edge="1" source="amcl" target="main_node" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_batt" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;strokeColor=#1565c0;strokeWidth=2;" edge="1" source="battery_drv" target="main_node" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_patrol" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#1565c0;strokeWidth=2;" edge="1" source="patrol" target="main_node" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_scenario" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.6;entryDx=0;entryDy=0;strokeColor=#1565c0;strokeWidth=2;" edge="1" source="scenario" target="main_node" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_vision" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;strokeColor=#1565c0;strokeWidth=2;" edge="1" source="vision" target="main_node" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 내부 상태머신 박스 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="sm_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c62828;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="480" y="460" width="310" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="sm_title" value="내부 상태머신" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#c62828;" vertex="1" parent="1">
+          <mxGeometry x="480" y="462" width="310" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- 상태 원들 -->
+        <mxCell id="s_patrol" value="PATROL" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="496" y="496" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s_interact" value="INTERACTING" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="496" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s_escort" value="ESCORTING" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#880e4f;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="598" width="100" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- 상태 전이 화살표 -->
+        <mxCell id="t1" value="patrol_stopped" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=9;strokeColor=#e65100;strokeWidth=1.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="s_patrol" target="s_interact" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="goal_pose_request" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=9;strokeColor=#880e4f;strokeWidth=1.5;exitX=1;exitY=1;entryX=1;entryY=0;" edge="1" source="s_interact" target="s_escort" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="796" y="560" />
+              <mxPoint x="796" y="598" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="t3" value="resume_patrol_request" style="edgeStyle=orthogonalEdgeStyle;html=1;fontSize=9;strokeColor=#2e7d32;strokeWidth=1.5;exitX=0;exitY=1;entryX=0;entryY=1;" edge="1" source="s_escort" target="s_patrol" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="660" />
+              <mxPoint x="541" y="660" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 1Hz 타이머 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="timer" value="⏱ 1Hz 타이머" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3949ab;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="547" y="710" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="e_timer" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#3949ab;strokeWidth=1.5;dashed=1;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" source="timer" target="main_node" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 출력 노드들 (오른쪽) -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="monitor" value="monitor_server&#xa;(ros_ingest.py)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="290" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ws_bridge" value="state_ws_bridge_node&#xa;(pose 캐시용)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="400" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- 출력 토픽 레이블 -->
+        <mxCell id="out_topic" value="/robot2/robot_state&#xa;/robot4/robot_state" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fillColor=#fff9c4;strokeColor=#f9a825;rounded=1;" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="840" y="348" width="170" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- 출력 화살표 -->
+        <mxCell id="e_monitor" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.4;entryX=0;entryY=0.5;strokeColor=#2e7d32;strokeWidth=2;" edge="1" source="main_node" target="monitor" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ws" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.6;entryX=0;entryY=0.5;strokeColor=#7b1fa2;strokeWidth=2;" edge="1" source="main_node" target="ws_bridge" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- 메시지 형식 박스 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="msg_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f9fbe7;strokeColor=#827717;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="520" width="280" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_title" value="발행 메시지 형식 (RobotState)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=11;fontColor=#827717;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="524" width="280" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_content" value='robot_id:        "robot2"&#xa;state:           "PATROL"&#xa;                 "INTERACTING"&#xa;                 "ESCORTING"&#xa;pose.x:          1.23   ← amcl_pose&#xa;pose.y:          4.56   ← amcl_pose&#xa;pose.theta:      0.78   ← amcl_pose&#xa;battery:         73     ← battery_state&#xa;current_task_id: ""&#xa;task_status:     ""&#xa;error_code:      ""&#xa;timestamp:       "2026-06-11T..."' style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;fontSize=10;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="1068" y="552" width="264" height="240" as="geometry" />
+        </mxCell>
+
+        <!-- ══════════════════════════════════════════════════════ -->
+        <!-- robot2 / robot4 구분 배지 -->
+        <!-- ══════════════════════════════════════════════════════ -->
+        <mxCell id="badge" value="robot2 / robot4 각각 독립 실행 (ROBOTS = [&quot;robot2&quot;, &quot;robot4&quot;])" style="text;html=1;strokeColor=#7b1fa2;fillColor=#f3e5f5;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="480" y="288" width="390" height="32" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
