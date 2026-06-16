@@ -8,6 +8,18 @@
 
 ---
 
+## 🎬 티저 영상
+
+<div align="center">
+
+[![티저 영상](https://img.youtube.com/vi/dK5luGPoyV0/maxresdefault.jpg)](https://youtu.be/dK5luGPoyV0)
+
+[▶ YouTube에서 보기](https://youtu.be/dK5luGPoyV0)
+
+</div>
+
+---
+
 ## 📋 목차
 
 1. [시스템 개요](#1-시스템-개요)
@@ -15,6 +27,8 @@
 3. [실행 방법](#3-실행-방법)
 4. [상태 전이 로직](#4-상태-전이-로직)
 5. [요구사항 및 설치](#5-요구사항-및-설치)
+6. [내 주요 업무](#6-내-주요-업무)
+7. [Trouble Shooting](#7-trouble-shooting)
 
 ---
 
@@ -509,11 +523,101 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
-## 📚 참고 문서
+## 6. 내 주요 업무
 
-| 문서 | 내용 |
-|------|------|
-| `docs/인터페이스_정의서_v2_1.md` | ROS 토픽·메시지 인터페이스 원본 명세 |
-| `docs/FMS_서버_구현가이드.md` | 구현 가이드 및 절대 규칙 |
-| `src/alfred_interaction/RUN.md` | 키오스크 UI 상세 실행 가이드 |
-| `src/alfred_interaction/로봇상태_UI연동_계약.md` | 로봇 상태 ↔ UI 연동 계약 |
+### 1. [인터페이스 관리]
+> 4개 트랙(Interaction / Driving / Vision / Monitor)이 공통으로 따르는 ROS2 메시지 계약(IF-01 ~ IF-05)과 상태 enum을 버전 관리
+
+- **인터페이스 정의서 v1 → v2 → v2.1** 로 버전 업하며 트랙 간 계약 명세 유지
+- `alfred_interfaces` 패키지에 커스텀 ROS2 메시지 정의 (Request / RobotState / Task / TaskAck / Event / MissionSignal)
+- 트랙 간 상태 소유권 원칙 정리: "Robot State는 로봇이 직접 전이·보고, 에스코트 통합 상태는 bridge 노드가 단독 집계"
+- 초기에는 MQTT 기반 FMS 서버 구조로 설계했으나, 실제 구현에서는 ROS2 토픽 직접 통신 구조로 전환 — 문서는 상태 enum·전이 규칙의 계약 기준으로 활용
+- v2 주요 변경: task_type 6종 → 4종 축소, 핸드오버 독립 인터페이스 삭제(IF-02 상태 전이로 흡수)
+
+<table>
+  <tr>
+    <td align="center"><b>초기 설계 — FMS 서버 중심 (폐기)</b></td>
+    <td align="center"><b>실제 구현 — ROS2 + Bridge 노드 집계</b></td>
+  </tr>
+  <tr>
+    <td><img src="./assets/arch_fms_planned.png"/></td>
+    <td><img src="./assets/arch_implemented.png"/></td>
+  </tr>
+</table>
+
+---
+
+### 2. [코드 통합]
+> 4개 트랙 코드를 하나의 동작 파이프라인으로 묶는 `alfred_bridge` 패키지 설계 및 구현
+
+- **`escort_state_bridge_node`**: alfred_driving·alfred_vision 등 여러 패키지에 흩어진 토픽을 구독하여 에스코트 FSM 상태(1F→2F 릴레이 포함)를 단일 노드에서 집계 → `/escort_state`, `/{robot}/ui_state` 발행
+- **`state_ws_bridge_node`**: 표준 라이브러리만으로 RFC 6455 WebSocket 서버를 직접 구현하여 관제 UI에 상태 변화를 실시간 broadcast
+- **`robot_state_publisher_node`**: AMCL 위치 + 배터리 → `/{robot}/robot_state` 1 Hz 주기 발행으로 모니터 서버 단일 입력 창구 통합
+- PR #4(robot_amr) → #5(user_interaction) → #6(detection) → #7(monitor) 순서로 트랙별 브랜치를 검토·머지하며 전체 파이프라인 조립
+
+---
+
+### 3. [깃허브 관리]
+> 4개 트랙 × 브랜치 분리 운영 및 충돌 없는 머지 프로세스 관리
+
+- 트랙별 feature 브랜치(robot_amr / user_interaction / detection / monitor) 분리 운영
+- 7개 PR 코드 리뷰 후 main 브랜치에 순차 머지
+- 모노레포 패키지 구조 정립 (`src/alfred_*` 통일), 런타임 생성 DB 파일 `.gitignore` 처리
+- 최종 버전 정리 및 `alfred_monitor_server` 경로 재배치(`src/alfred_monitor_server`)
+
+---
+
+### 4. [통합 테스트]
+> 실제 TurtleBot4 로봇을 사용한 end-to-end 통합 테스트 진행
+
+- **실 로봇 테스트**: 시뮬레이터 없이 실제 TurtleBot4 2대(robot2·robot4)로 전체 파이프라인 검증
+- Interaction(키오스크 UI) → rosbridge → alfred_driving → alfred_bridge → 관제 UI 전 구간 메시지 흐름 직접 확인
+- 1F→1F 단독 에스코트, 2F→2F 단독 에스코트, 1F→2F 릴레이 핸드오버 시나리오 순차 테스트
+- `escort_sim_test.py`, `ws_sub_test.py` — 실 로봇 투입 전 메시지 포맷·WebSocket 수신 동작을 사전 검증하는 용도로 작성
+- 테스트 중 발견된 인터페이스 불일치·Nav2 서버 실패 등의 문제를 트래킹하고 각 트랙 담당자와 협의하여 수정 후 재테스트 반복
+
+---
+
+## 7. Trouble Shooting
+
+### 1. [FMS 구조 폐기 후 Driving ↔ UI 인터페이스 불일치]
+**증상**
+> 초기 설계(FMS 서버가 상태를 단독 집계)에서 bridge 노드 집계 구조로 전환하자, Driving 팀이 발행하던 토픽 포맷과 UI 팀이 기대하는 포맷이 달라 통합 시점에 메시지를 정상적으로 수신하지 못함
+
+**원인**
+> FMS 모델에서는 중앙 서버가 상태를 변환해 UI에 내려주는 구조였으나, 이를 폐기하면서 Driving 팀은 단순 문자열(`"patrol_stopped"`, `"arrived"`)을 `/nav_status`로 발행하고, UI 팀은 `{state, robot_id, destination: {poi_id}}` 형태의 `ui_state` JSON을 기대하는 상태로 각자 개발이 진행됨.
+> `server_request_node`도 raw IF-01 / rosbridge 봉투 / `std_msgs/String` 래핑 등 세 가지 포맷이 혼재해 어느 한 포맷을 가정하면 다른 경로에서 파싱이 깨짐
+
+**해결 방법**
+> `escort_state_bridge_node`가 `/robot2|4/nav_status`(Driving 출력)를 구독해 FSM으로 해석한 뒤, UI가 기대하는 `/{robot}/ui_state` JSON으로 변환·발행하는 변환 계층을 추가.
+> `server_request_node`에는 `normalize_information_payload()`를 작성해 세 가지 포맷을 모두 흡수하도록 정규화하고, 이후 트랙 간 계약은 인터페이스 정의서에 명시해 포맷 혼재를 방지
+
+---
+
+### 2. [Wi-Fi 네트워크 병목으로 인한 Localization·Nav2 반복 실패]
+**증상**
+> Localization 실행 시 `fail` / `aborting` 로그가 연속으로 출력되며 AMCL이 붙지 않음.
+> 겨우 AMCL이 연결돼 Nav2를 켜도, Nav2에서 `aborting`이 발생하거나 AMCL 데이터를 받기 위해 무한 대기 상태에 빠짐
+
+**원인**
+> 하나의 Wi-Fi 네트워크에 3개 팀 약 30명이 TurtleBot4 6대를 동시에 운용하면서 DDS 멀티캐스트 트래픽이 폭증하여 네트워크 병목이 발생.
+> 이로 인해 `/scan`, `/odom` 등 localization에 필요한 토픽이 지연·유실되어 AMCL 초기화가 실패하고, map server 등 lifecycle 노드가 제대로 종료되지 않은 채 좀비 상태로 남아 다음 실행을 방해
+
+**해결 방법**
+> 1. `ping 192.168.107.102`, `ping 192.168.107.104`로 실시간 네트워크 상태를 진단해 병목 여부를 확인
+> 2. map server 등이 실패했을 때 `systemctl service-restart` 및 TurtleBot4 reboot으로 제대로 종료되지 않은 노드를 강제 정리
+> 3. 위 조치로도 해결되지 않자, 3개 팀 간 협의를 통해 TurtleBot4 사용 시간을 팀별 30분씩 순번제로 배분하여 동시 접속 수를 줄임
+
+---
+
+## 🎥 시연 영상
+
+<div align="center">
+
+[![시연 영상](https://img.youtube.com/vi/ygc8uu77qcA/maxresdefault.jpg)](https://youtu.be/ygc8uu77qcA)
+
+[▶ YouTube에서 보기](https://youtu.be/ygc8uu77qcA)
+
+</div>
+
+---
