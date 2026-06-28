@@ -27,8 +27,14 @@
 3. [실행 방법](#3-실행-방법)
 4. [상태 전이 로직](#4-상태-전이-로직)
 5. [요구사항 및 설치](#5-요구사항-및-설치)
-6. [내 주요 업무](#6-내-주요-업무)
-7. [Trouble Shooting](#7-trouble-shooting)
+6. **[🙋 내 주요 업무](#my-work)**
+   - [1. 인터페이스 관리](#work-1)
+   - [2. 코드 통합](#work-2)
+   - [3. 깃허브 관리](#work-3)
+   - [4. 통합 테스트](#work-4)
+7. **[🔧 Trouble Shooting](#trouble-shooting)**
+   - [1. FMS 구조 폐기 후 Driving ↔ UI 인터페이스 불일치](#trouble-1)
+   - [2. Wi-Fi 네트워크 병목으로 인한 Localization·Nav2 반복 실패](#trouble-2)
 
 ---
 
@@ -523,8 +529,10 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
+<a id="my-work"></a>
 ## 6. 내 주요 업무
 
+<a id="work-1"></a>
 ### 1. [인터페이스 관리]
 > 4개 트랙(Interaction / Driving / Vision / Monitor)이 공통으로 따르는 ROS2 메시지 계약(IF-01 ~ IF-05)과 상태 enum을 버전 관리
 
@@ -547,6 +555,7 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
+<a id="work-2"></a>
 ### 2. [코드 통합]
 > 4개 트랙 코드를 하나의 동작 파이프라인으로 묶는 `alfred_bridge` 패키지 설계 및 구현
 
@@ -557,6 +566,7 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
+<a id="work-3"></a>
 ### 3. [깃허브 관리]
 > 4개 트랙 × 브랜치 분리 운영 및 충돌 없는 머지 프로세스 관리
 
@@ -567,6 +577,7 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
+<a id="work-4"></a>
 ### 4. [통합 테스트]
 > 실제 TurtleBot4 로봇을 사용한 end-to-end 통합 테스트 진행
 
@@ -578,8 +589,10 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
+<a id="trouble-shooting"></a>
 ## 7. Trouble Shooting
 
+<a id="trouble-1"></a>
 ### 1. [FMS 구조 폐기 후 Driving ↔ UI 인터페이스 불일치]
 **증상**
 > 초기 설계(FMS 서버가 상태를 단독 집계)에서 bridge 노드 집계 구조로 전환하자, Driving 팀이 발행하던 토픽 포맷과 UI 팀이 기대하는 포맷이 달라 통합 시점에 메시지를 정상적으로 수신하지 못함
@@ -594,6 +607,7 @@ alfred_ws/install/alfred_vision/share/alfred_vision/resource/best.pt
 
 ---
 
+<a id="trouble-2"></a>
 ### 2. [Wi-Fi 네트워크 병목으로 인한 Localization·Nav2 반복 실패]
 **증상**
 > Localization 실행 시 `fail` / `aborting` 로그가 연속으로 출력되며 AMCL이 붙지 않음.
